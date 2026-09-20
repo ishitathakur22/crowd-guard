@@ -93,6 +93,13 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+
+        # Seed the venue with an initial crowd so it isn't empty on first
+        # paint — the arrival curve alone takes a minute or two to build
+        # this up naturally.
+        if not sim_engine.agents:
+            sim_engine.spawn_agents(220)
+
         # Send initial grid config + venue metadata
         await websocket.send_json({
             "type": "grid_config",

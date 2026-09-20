@@ -94,8 +94,9 @@ class SimulationEngine:
         # how many people are still on their way in.
         self.arrival_model = ArrivalModel(
             archetype="gate",
-            attendance=30_000,
-            start_hour=16.0,   # simulation opens at 16:00, pre-event build-up
+            attendance=55_000,
+            start_hour=17.0,   # matches the default slider values in index.html
+            scale=2.0,
         )
         self.auto_ingress = True
         self.prediction_engine.set_arrival_model(self.arrival_model, self.gates)
