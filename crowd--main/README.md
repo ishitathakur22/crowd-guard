@@ -1,4 +1,4 @@
-# Crowd Flow Optimiser
+# Crowd-guard 
 
 Real-time crowd simulation, AI-powered vision pipeline, bottleneck forecasting, and automated rerouting engine. A predictive digital twin for venue crowd management.
 
