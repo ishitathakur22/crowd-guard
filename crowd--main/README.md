@@ -32,8 +32,8 @@ We provide automated batch scripts for Windows to handle virtual environments, d
 
 1. Clone the repository:
    ```cmd
-   git clone https://github.com/aniketsidhu123/GrandPrixGeekRoom.git
-   cd GrandPrixGeekRoom
+   git clone https://github.com/ishitathakur22/crowd--main.git
+   cd crowd--main
    ```
 
 2. Run the automated setup script. This will create `.venv`, install PyTorch with CUDA, compile `llama-cpp-python` for GPU, and download all models to the `weights/` directory:
