@@ -39,6 +39,25 @@ from .density import DensityAnalyzer, classify_fruin
 from .pathfinding import a_star_search
 
 
+# Density (people/m²) at which a zone counts as a "pile-up": Fruin LoS F begins here
+# (severe congestion, body contact). The early-warning list flags any zone the
+# forecast expects to reach this within the horizon.
+PILEUP_DENSITY = 2.17
+
+
+def _local_max(field: np.ndarray, r: int = 1) -> np.ndarray:
+    """Max of each cell's (2r+1)x(2r+1) neighbourhood. Forecast agents drift a cell or two
+    from where the live ones stand, so matching on the neighbourhood is more robust than
+    on the single cell."""
+    h, w = field.shape
+    padded = np.pad(field, r, mode="constant", constant_values=0)
+    out = np.zeros_like(field)
+    for dy in range(2 * r + 1):
+        for dx in range(2 * r + 1):
+            np.maximum(out, padded[dy:dy + h, dx:dx + w], out=out)
+    return out
+
+
 class PredictionEngine:
     """
     Predictive forecast engine for crowd simulation.
@@ -71,6 +90,13 @@ class PredictionEngine:
         # Ingress. Set by the simulation engine; None disables arrival injection.
         self.arrival_model = None
         self.gate_positions: List[Point] = []
+
+        # Per-cell forecast summaries filled by forecast(): earliest time (sec after the
+        # forecast was made) each cell's neighbourhood reaches PILEUP_DENSITY, and the
+        # highest neighbourhood density seen anywhere in the horizon.
+        self.forecast_eta: Optional[np.ndarray] = None
+        self.forecast_peak: Optional[np.ndarray] = None
+        self.forecast_made_at: float = 0.0
 
         # Legacy ingress estimate, kept for the vision pipeline path.
         self.recent_spawn_counts: List[int] = []
@@ -116,6 +142,7 @@ class PredictionEngine:
         """
         live = [a for a in agents if a.status != "arrived"]
         if not live:
+            self.reset_forecast()
             return []
 
         wall_mask = self._build_wall_mask(grid)
@@ -129,6 +156,7 @@ class PredictionEngine:
         snapshot_every = max(1, int(self.snapshot_interval_sec / self.sim_dt))
 
         snapshots: List[PredictionSnapshot] = []
+        grids = []   # (time_offset_sec, density grid) per snapshot, for the early-warning maps
         # People who have arrived but could not get through a gate yet. They
         # queue outside rather than materialising on top of the crowd already
         # standing in the gate cell.
@@ -154,10 +182,74 @@ class PredictionEngine:
             if (step + 1) % snapshot_every == 0:
                 time_offset = (step + 1) * self.sim_dt
                 snapshots.append(self._capture_snapshot(state, time_offset))
+                grids.append((time_offset, state.density_grid()))
                 if len(snapshots) >= self.max_snapshots:
                     break
 
+        self._build_eta_maps(grids, sim_time_sec)
         return snapshots
+
+    # ─────────────────────────────────────────────
+    # EARLY WARNINGS (15-minute look-ahead per zone)
+    # ─────────────────────────────────────────────
+
+    def reset_forecast(self):
+        self.forecast_eta = None
+        self.forecast_peak = None
+
+    def _build_eta_maps(self, grids, sim_time_sec: float):
+        h, w = self.height, self.width
+        eta = np.full((h, w), np.inf)
+        peak = np.zeros((h, w))
+        for t, g in grids:
+            lm = _local_max(g)
+            peak = np.maximum(peak, lm)
+            newly = (lm >= PILEUP_DENSITY) & np.isinf(eta)
+            eta[newly] = t
+        self.forecast_eta, self.forecast_peak = eta, peak
+        self.forecast_made_at = sim_time_sec
+
+    def early_warnings(self, raw_density: np.ndarray, sim_time_sec: float,
+                       limit: int = 8, cluster_radius: float = 4.0) -> list:
+        """
+        Zones expected to pile up (>= PILEUP_DENSITY) within the forecast horizon, soonest
+        first. Zones already there report eta_sec = 0. Nearby cells are merged so one
+        crowd shows as one warning instead of dozens.
+        """
+        live_lm = _local_max(raw_density)
+        if self.forecast_eta is None:
+            eta = np.full(raw_density.shape, np.inf)
+            peak = live_lm.copy()
+        else:
+            age = max(0.0, sim_time_sec - self.forecast_made_at)
+            eta = np.maximum(self.forecast_eta - age, 0.0)   # inf stays inf
+            peak = np.maximum(self.forecast_peak, live_lm)
+        eta = np.where(live_lm >= PILEUP_DENSITY, 0.0, eta)
+
+        ys, xs = np.where(np.isfinite(eta))
+        if len(ys) == 0:
+            return []
+        order = sorted(range(len(ys)), key=lambda i: (eta[ys[i], xs[i]], -peak[ys[i], xs[i]]))
+
+        picked = []
+        for i in order:
+            y, x = int(ys[i]), int(xs[i])
+            if any(((x - px) ** 2 + (y - py) ** 2) ** 0.5 <= cluster_radius for px, py in
+                   ((c["cell_x"], c["cell_y"]) for c in picked)):
+                continue
+            picked.append({
+                "cell_x": x,
+                "cell_y": y,
+                "eta_sec": round(float(eta[y, x]), 0),
+                # Bodies do not fit above ~5 people/m² (see cell_capacity); anything higher is
+                # a forecast artefact, so never report it as a real density.
+                "peak_density": round(min(float(peak[y, x]), self.cell_capacity), 2),
+                "current_density": round(float(raw_density[y, x]), 2),
+                "local_density": round(float(live_lm[y, x]), 2),   # busiest cell within 1 cell, right now
+            })
+            if len(picked) >= limit:
+                break
+        return picked
 
     def _build_wall_mask(self, grid: List[List[str]]) -> np.ndarray:
         """Boolean (height, width) mask, True where a cell is a wall."""
@@ -233,6 +325,26 @@ class PredictionEngine:
         cx = new_pos[:, 0].astype(np.int32)
         cy = new_pos[:, 1].astype(np.int32)
         blocked = wall_mask[cy, cx]
+
+        # ── Wall sliding: an agent whose diagonal move hits a wall corner would otherwise
+        #    be frozen there forever (velocity zeroed, same target next step). Let it keep
+        #    whichever axis of the move is still free, so it slides around the corner the
+        #    way the live simulation's agents do.
+        if np.any(blocked):
+            src_cx = pos[:, 0].astype(np.int32)
+            src_cy = pos[:, 1].astype(np.int32)
+            x_only_free = blocked & ~wall_mask[src_cy, cx]     # move in x, stay in y
+            y_only_free = blocked & ~x_only_free & ~wall_mask[cy, src_cx]
+            if np.any(x_only_free):
+                new_pos[x_only_free, 1] = pos[x_only_free, 1]
+                new_vel[x_only_free, 1] = 0.0
+            if np.any(y_only_free):
+                new_pos[y_only_free, 0] = pos[y_only_free, 0]
+                new_vel[y_only_free, 0] = 0.0
+            slid = x_only_free | y_only_free
+            cx = new_pos[:, 0].astype(np.int32)
+            cy = new_pos[:, 1].astype(np.int32)
+            blocked = wall_mask[cy, cx]
 
         # ── Capacity: a full cell cannot accept anyone new. Agents already
         #    inside one may still leave, so only cell-crossing moves are tested.

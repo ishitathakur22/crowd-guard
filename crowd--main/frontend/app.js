@@ -548,6 +548,7 @@ function updateAllUI() {
 
     // NEW: Recommended Actions + Event Setup clock
     renderRecommendedActions(s);
+    renderAutopilot(s);
 
     const esClock = document.getElementById('es-clock');
     if (esClock) esClock.textContent = hourLabel(s.clock_hour ?? 0);
@@ -720,59 +721,340 @@ function updateRerouteList(routes, count) {
 // Not a queueing model.
 // ═══════════════════════════════════════════════════════════════════
 
+// LoS-C safe density ceiling (people/m²) — matches FRUIN_THRESHOLDS in
+// backend/density.py. Used to compute a real "divert %": how much inflow
+// has to drop for the worst zone to fall back under this line.
+const SAFE_DENSITY_PM2 = 1.08;
+
+// Cached list of named landmarks built once from the static grid
+// (gridConfig.grid), not invented — every entry corresponds to an actual
+// 'concession' cell the backend placed on the venue layout.
+let _landmarkZonesCache = null;
+
+function getLandmarkZones() {
+    if (_landmarkZonesCache) return _landmarkZonesCache;
+    if (!gridConfig || !gridConfig.grid) return [];
+
+    const landmarks = [];
+    let foodCourtCount = 0;
+    for (let y = 0; y < gridConfig.height; y++) {
+        for (let x = 0; x < gridConfig.width; x++) {
+            if (gridConfig.grid[y][x] === 'concession') {
+                foodCourtCount++;
+                landmarks.push({ x, y, label: `Food Court ${foodCourtCount}` });
+            }
+        }
+    }
+    _landmarkZonesCache = landmarks;
+    return landmarks;
+}
+
+// Names a hazard by the nearest known landmark within range, otherwise
+// falls back to the raw cell coordinates (same as before).
+function zoneLabel(cellX, cellY) {
+    const landmarks = getLandmarkZones();
+    let nearest = null;
+    let nearestDist = Infinity;
+    for (const lm of landmarks) {
+        const d = Math.hypot(lm.x - cellX, lm.y - cellY);
+        if (d < nearestDist) {
+            nearestDist = d;
+            nearest = lm;
+        }
+    }
+    if (nearest && nearestDist <= 6) return nearest.label;
+    return `Zone (${cellX}, ${cellY})`;
+}
+
+// Nearest gate (any status) to a given cell — treated as the "origin"
+// gate feeding that congested zone, using each gate's real position.x/y.
+function nearestGate(gates, cellX, cellY) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const g of gates) {
+        const gx = g.position ? g.position.x : null;
+        const gy = g.position ? g.position.y : null;
+        if (gx == null || gy == null) continue;
+        const d = Math.hypot(gx - cellX, gy - cellY);
+        if (d < bestDist) {
+            bestDist = d;
+            best = g;
+        }
+    }
+    return best;
+}
+
+function gateLabel(g) {
+    return g ? String(g.gate_id).replace('gate_', 'Gate ') : null;
+}
+
+// Fruin LoS from density (same thresholds as backend/density.py)
+function losFromDensity(d) {
+    if (d < 0.31) return 'A';
+    if (d < 0.43) return 'B';
+    if (d < 1.08) return 'C';
+    if (d < 1.54) return 'D';
+    if (d < 2.17) return 'E';
+    if (d < 3.5) return 'F';
+    return 'CRITICAL';
+}
+
+// "now" / "<1 min" / "6 min" (forecast resolution is one minute)
+function formatEta(sec) {
+    if (sec == null || !isFinite(sec)) return '';
+    if (sec <= 0) return 'now';
+    if (sec < 60) return '&lt;1 min';
+    return `${Math.round(sec / 60)} min`;
+}
+
+// Cards are rebuilt from state every tick; only touch the DOM when the HTML changed,
+// so the Divert button doesn't get replaced under the cursor.
+function setRaHtml(list, html) {
+    if (list._lastHtml !== html) {
+        list.innerHTML = html;
+        list._lastHtml = html;
+    }
+}
+
+// Early warning: zones the backend forecast expects to pile up (>= LoS F, 2.17 p/m²)
+// within the next 15 minutes, soonest first. See PredictionEngine.early_warnings.
 function renderRecommendedActions(s) {
     const list = document.getElementById('ra-list');
     const count = document.getElementById('ra-count');
     if (!list || !count) return;
 
-    const hazards = (s.hazard_zones || [])
-        .filter(z => ['WARNING', 'CRITICAL', 'EMERGENCY'].includes(z.severity))
-        .sort((a, b) => (a.time_to_choke_sec ?? 9999) - (b.time_to_choke_sec ?? 9999))
-        .slice(0, 4);
+    const warnings = (s.forecast_warnings || []).slice(0, 4);
 
-    count.textContent = hazards.length;
-    count.classList.toggle('zero', hazards.length === 0);
+    count.textContent = warnings.length;
+    count.classList.toggle('zero', warnings.length === 0);
 
-    if (!hazards.length) {
-        list.innerHTML = '<div class="ra-empty">No action needed. All zones within safe limits.</div>';
+    if (!warnings.length) {
+        setRaHtml(list, '<div class="ra-empty">No pile-up forecast in the next 15 minutes.</div>');
         return;
     }
 
+    const allGates = s.gates || [];
     // gates jo closed/throttled nahi hain
-    const openGates = (s.gates || []).filter(g => {
+    const openGates = allGates.filter(g => {
         const status = String(g.status || '');
         return g.action !== 'CLOSE' &&
             !status.includes('THROTTL') &&
             !status.includes('RESTRICT');
     });
 
-    list.innerHTML = hazards.map(z => {
-        const eta = z.time_to_choke_sec;
-        // time_to_choke_sec is 0.0 when density is not rising (no estimate)
-        const etaLabel = (eta != null && eta > 0 && eta < 600) ? `${Math.max(1, Math.round(eta / 60))} min` : '';
-        const dens = z.current_density ?? z.density ?? 0;
+    const cards = warnings.map(w => {
+        const eta = w.eta_sec;
+        const etaText = formatEta(eta);
+        const now = Number(w.current_density ?? 0);
+        const peak = Number(w.peak_density ?? 0);
+        const peakLos = losFromDensity(peak);
+        const name = zoneLabel(w.cell_x, w.cell_y);
 
-        // Least-loaded open gate: shortest queue, then highest admit rate
-        const target = [...openGates].sort((a, b) =>
-            ((a.queue_length ?? 0) - (b.queue_length ?? 0)) ||
-            ((b.target_rate_per_sec ?? 0) - (a.target_rate_per_sec ?? 0)))[0];
+        const headline = eta <= 0
+            ? `${name} is at LoS ${peakLos} (${peak.toFixed(1)} p/m²) now.`
+            : `${name} reaches LoS ${peakLos} (${peak.toFixed(1)} p/m²) in ${etaText}.`;
 
-        const action = target
-            ? `Shift intake toward <b>${String(target.gate_id).replace('gate_', 'Gate ')}</b> (queue ${target.queue_length ?? 0}, admitting ${(target.target_rate_per_sec ?? 0).toFixed(1)}/s).`
-            : `No open gate available. Recommend throttling intake instead.`;
+        // Origin gate = real gate closest to the zone, presumed to be feeding it
+        const byId = id => (id ? allGates.find(g => g.gate_id === id) || null : null);
+        const originGate = w.origin_gate !== undefined ? byId(w.origin_gate) : nearestGate(allGates, w.cell_x, w.cell_y);
+
+        // Least-loaded open gate that isn't the origin: shortest queue, then highest admit rate
+        const target = w.target_gate !== undefined ? byId(w.target_gate) : [...openGates]
+            .filter(g => !originGate || g.gate_id !== originGate.gate_id)
+            .sort((a, b) =>
+                ((a.queue_length ?? 0) - (b.queue_length ?? 0)) ||
+                ((b.target_rate_per_sec ?? 0) - (a.target_rate_per_sec ?? 0)))[0];
+
+        // Divert %: how much inflow has to drop for the forecast peak to fall back under
+        // the LoS-C safe ceiling (1.08 p/m², same threshold backend/density.py uses).
+        // The backend computes it (Autopilot uses the same number); fall back to local math.
+        let pct = 0;
+        if (w.divert_pct !== undefined) {
+            pct = w.divert_pct;
+        } else if (peak > SAFE_DENSITY_PM2) {
+            pct = Math.round(((peak - SAFE_DENSITY_PM2) / peak) * 100);
+            pct = Math.max(5, Math.min(95, pct));
+        }
+
+        const originLabel = gateLabel(originGate);
+        const targetLabel = gateLabel(target);
+
+        const activeDivert = originGate
+            ? (s.active_diverts || []).find(d => d.origin === originGate.gate_id)
+            : null;
+
+        let divertBlock = '';
+        let action;
+        if (activeDivert) {
+            const tgtName = gateLabel({ gate_id: activeDivert.target });
+            action = headline;
+            divertBlock = `<div class="ra-divert-confirm">✓ Diverting ${Math.round(activeDivert.pct)}% of ${originLabel} arrivals to ${tgtName} — ${Math.round(activeDivert.remaining_sec)}s left</div>`;
+        } else if (target && originGate && originLabel && targetLabel && originLabel !== targetLabel && pct > 0) {
+            // Every number here is a real field off the gate objects: nothing invented.
+            const oq = originGate.queue_length ?? 0;
+            const ow = originGate.wait_time_sec ?? 0;
+            const tq = target.queue_length ?? 0;
+            const tRate = target.target_rate_per_sec ?? 0;
+
+            action = `${headline} ${originLabel}: ${oq} queuing, ${ow.toFixed(1)}s wait. `
+                   + `Divert ${pct}% of new arrivals to ${targetLabel}, `
+                   + `currently ${tq} queuing, admitting ${tRate.toFixed(1)}/s.`;
+
+            divertBlock = `<div class="ra-divert-row">
+                 <span class="ra-divert-label">${originLabel} → ${targetLabel}</span>
+                 <button class="ra-divert-btn"
+                         data-origin="${originGate.gate_id}"
+                         data-target="${target.gate_id}"
+                         data-pct="${pct}">Divert ${pct}%</button>
+               </div>`;
+            const ap = s.autopilot;
+            const pend = ap && ap.enabled ? (ap.pending || []).find(p => p.origin === originGate.gate_id) : null;
+            if (pend && pend.seconds_left != null) {
+                divertBlock += `<div class="ra-auto-note">🤖 Autopilot will divert ${pend.pct}% in ${pend.seconds_left}s unless you act</div>`;
+            }
+        } else if (target && targetLabel) {
+            action = `${headline} Shift intake toward <b>${targetLabel}</b>.`;
+        } else {
+            action = `${headline} No clearer alternative — throttle intake.`;
+        }
 
         return `
-          <div class="ra-card ${z.severity === 'WARNING' ? 'warn' : ''}">
+          <div class="ra-card ${eta <= 0 ? '' : 'warn'}">
             <div class="ra-top">
-              <span class="ra-title">Zone (${z.cell_x}, ${z.cell_y}) congested</span>
-              ${etaLabel ? `<span class="ra-eta">${etaLabel}</span>` : ''}
+              <span class="ra-title">${name} ${eta <= 0 ? 'congested' : 'pile-up expected'}</span>
+              <span class="ra-eta">${etaText}</span>
             </div>
-            <div class="ra-meta">${Number(dens).toFixed(1)} p/m² · ${z.severity}</div>
+            <div class="ra-meta">now ${now.toFixed(1)} → peak ${peak.toFixed(1)} p/m² · LoS ${peakLos}</div>
+            ${divertBlock}
             <div class="ra-body">${action}</div>
-            ${!target ? '<div class="ra-nospare">no open gate available</div>' : ''}
+            ${!target ? '<div class="ra-nospare">no alternative with spare capacity</div>' : ''}
           </div>`;
     }).join('');
+
+    setRaHtml(list, cards);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTOPILOT: status comes with every state update; the activity log is
+// fetched only when the backend says it changed (log_seq).
+// ═══════════════════════════════════════════════════════════════════
+
+let _apLogSeq = null;
+
+function escapeHtml(t) {
+    return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function apPost(path, body) {
+    return fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+    })
+        .then(r => r.json())
+        .then(d => { _apLogSeq = d.log_seq; renderApStatus(d); renderApLog(d.log || [], d.ack_seq); })
+        .catch(err => console.error('[Autopilot]', err));
+}
+
+function fetchApLog() {
+    fetch('/api/autopilot')
+        .then(r => r.json())
+        .then(d => { _apLogSeq = d.log_seq; renderApLog(d.log || [], d.ack_seq); })
+        .catch(() => {});
+}
+
+function renderApStatus(ap) {
+    const toggle = document.getElementById('ap-toggle');
+    const status = document.getElementById('ap-status');
+    const wait = document.getElementById('ap-wait');
+    const pendingEl = document.getElementById('ap-pending');
+    const unseen = document.getElementById('ap-unseen');
+    if (!toggle || !status) return;
+
+    toggle.checked = !!ap.enabled;
+    status.classList.toggle('on', !!ap.enabled);
+    status.textContent = ap.enabled
+        ? `On: diverts ${ap.wait_sec === 0 ? 'immediately' : `after ${ap.wait_sec}s without a response`} `
+          + `(only where already busy and a pile-up is due within ${Math.round(ap.max_eta_sec / 60)} min; max ${ap.max_pct}%)`
+        : 'Off: every decision waits for you';
+
+    if (wait) wait.querySelectorAll('.ap-wait-btn').forEach(b =>
+        b.classList.toggle('on', Number(b.dataset.wait) === ap.wait_sec));
+
+    if (pendingEl) {
+        const items = ap.enabled ? (ap.pending || []) : [];
+        pendingEl.innerHTML = items.map(p =>
+            `<div class="ap-pending-item">🤖 ${escapeHtml(gateLabel({ gate_id: p.origin }))} → ${escapeHtml(gateLabel({ gate_id: p.target }))} ` +
+            `${p.pct}% (${escapeHtml(p.zone)}) in ${p.seconds_left ?? 0}s unless you act</div>`).join('');
+    }
+
+    if (unseen) {
+        unseen.textContent = ap.unseen || 0;
+        unseen.classList.toggle('zero', !ap.unseen);
+    }
+}
+
+let _apLogHtml = null;
+function renderApLog(log, ackSeq) {
+    const el = document.getElementById('ap-log');
+    if (!el) return;
+    const html = !log.length
+        ? '<div class="ap-empty">No activity yet.</div>'
+        : log.map(e => {
+            const cls = e.source === 'autopilot' ? 'auto' : e.source === 'operator' ? 'you' : '';
+            const tag = e.source === 'autopilot' ? 'AUTO' : e.source === 'operator' ? 'YOU' : 'SYSTEM';
+            const t = new Date(e.ts * 1000).toLocaleTimeString();
+            const sim = Math.floor(e.sim_time_sec || 0);
+            const simLabel = `T+${String(Math.floor(sim / 60)).padStart(2, '0')}:${String(sim % 60).padStart(2, '0')}`;
+            return `<div class="ap-entry ${cls} ${e.id > ackSeq ? 'unseen' : ''}">
+                <div class="ap-entry-meta"><span class="ap-tag">${tag}</span><span>${t} · ${simLabel}</span></div>
+                ${escapeHtml(e.message)}
+            </div>`;
+        }).join('');
+    if (html !== _apLogHtml) {          // don't reset the scroll position for nothing
+        el.innerHTML = html;
+        _apLogHtml = html;
+    }
+}
+
+function renderAutopilot(s) {
+    const ap = s.autopilot;
+    if (!ap) return;
+    renderApStatus(ap);
+    if (ap.log_seq !== _apLogSeq) {     // something new was logged (or first load)
+        _apLogSeq = ap.log_seq;
+        fetchApLog();
+    }
+}
+
+document.getElementById('ap-toggle')?.addEventListener('change', e => apPost('/api/autopilot', { enabled: e.target.checked }));
+document.getElementById('ap-wait')?.addEventListener('click', e => {
+    const btn = e.target.closest('.ap-wait-btn');
+    if (btn) apPost('/api/autopilot', { wait_sec: Number(btn.dataset.wait) });
+});
+document.getElementById('ap-ack')?.addEventListener('click', () => apPost('/api/autopilot/ack'));
+
+// ── Divert button ──────────────────────────────────────────────────
+// Cards are rebuilt from state every tick, so listeners on individual buttons
+// would detach. One delegated listener on the list survives re-renders.
+// pointerdown (not click) because click needs press+release on the *same*
+// element, and a re-render between the two would swallow it.
+function handleDivert(originGateId, targetGateId, pct) {
+    sendCommand({
+        action: 'divert_gate',
+        origin_gate_id: originGateId,
+        target_gate_id: targetGateId,
+        pct: pct,
+    });
+}
+
+document.getElementById('ra-list')?.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const btn = e.target.closest('.ra-divert-btn');
+    if (!btn) return;
+    e.preventDefault();
+    handleDivert(btn.dataset.origin, btn.dataset.target, Number(btn.dataset.pct));
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // GATE CONTROL
@@ -1151,10 +1433,13 @@ function updateVisionDashboard(data) {
 // EVENT SETUP — wires to /api/ingress
 // ═══════════════════════════════════════════════════════════════════
 
+// All three use the "gate" sensor curve (sensor 12). It peaks at 08:00, so opening
+// doors at 07:30 puts the venue straight into the rush.
+//   sellout  -> 45,000 x 2.0 ≈ 13,700 arrivals/hr at 07:37  (dense crowd, LoS F zones)
 const PRESETS = {
-    weekday:  { archetype: 'gate',      attendance: 18000, start_hour: 8,  scale: 1.0, weekend: false },
-    matchday: { archetype: 'concourse', attendance: 45000, start_hour: 16, scale: 1.5, weekend: false },
-    sellout:  { archetype: 'concourse', attendance: 60000, start_hour: 17, scale: 2.0, weekend: false },
+    weekday:  { archetype: 'gate', attendance: 18000, start_hour: 7.5, scale: 1.0, weekend: false },
+    matchday: { archetype: 'gate', attendance: 45000, start_hour: 7.5, scale: 1.5, weekend: false },
+    sellout:  { archetype: 'gate', attendance: 45000, start_hour: 7.5, scale: 2.0, weekend: false },
 };
 
 async function applyIngress(partial) {
@@ -1178,9 +1463,12 @@ function updateIngressReadout(data) {
     if (!el || !data) return;
     const perHour = data.current_rate_per_hour ?? 0;
     const cfg = data.config || {};
-    const src = cfg.sensor_id ?? cfg.source ?? 'sensor data';
-    const state = data.enabled === false ? ' · paused' : '';
-    el.textContent = `${Math.round(perHour).toLocaleString()} arrivals/hr · ${src}${state}`;
+    const city = String(cfg.source || '').includes('Melbourne') ? 'Melbourne' : (cfg.source || 'sensor data');
+    const line2 = cfg.sensor_id != null
+        ? `${city} sensor ${cfg.sensor_id}${cfg.days_observed ? ' · ' + Number(cfg.days_observed).toLocaleString() + ' days' : ''}`
+        : city;
+    const paused = data.enabled === false ? ' · paused' : '';
+    el.innerHTML = `${Math.round(perHour).toLocaleString()} arrivals/hr${paused}<br>${line2}`;
 }
 
 function refreshIngressReadout() {
@@ -1197,6 +1485,28 @@ function debounce(fn, ms) {
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
+// Make the sliders reflect what the backend is actually using (not the HTML defaults)
+function syncEventSetupFromServer(data) {
+    const cfg = data && data.config;
+    if (!cfg) return;
+    const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+    set('es-attendance', cfg.attendance);
+    set('es-hour', cfg.start_hour);
+    set('es-scale', cfg.scale);
+    if (cfg.attendance != null) document.getElementById('es-attendance-val').textContent = Number(cfg.attendance).toLocaleString();
+    if (cfg.start_hour != null) document.getElementById('es-hour-val').textContent = hourLabel(Number(cfg.start_hour));
+    if (cfg.scale != null) document.getElementById('es-scale-val').textContent = Number(cfg.scale).toFixed(1) + '×';
+    document.querySelectorAll('.day-btn').forEach(b =>
+        b.classList.toggle('on', (b.dataset.weekend === 'true') === !!cfg.weekend));
+    // highlight the preset that matches, if any
+    document.querySelectorAll('.preset-btn').forEach(b => {
+        const p = PRESETS[b.dataset.preset];
+        const match = p && p.archetype === cfg.archetype && p.attendance === cfg.attendance &&
+            p.start_hour === cfg.start_hour && p.scale === cfg.scale && p.weekend === !!cfg.weekend;
+        b.classList.toggle('active', !!match);
+    });
+}
+
 function initEventSetup() {
     if (!document.getElementById('es-attendance')) return;
 
@@ -1211,6 +1521,8 @@ function initEventSetup() {
             document.getElementById('es-attendance-val').textContent = p.attendance.toLocaleString();
             document.getElementById('es-hour-val').textContent = hourLabel(p.start_hour);
             document.getElementById('es-scale-val').textContent = p.scale.toFixed(1) + '×';
+            document.querySelectorAll('.day-btn').forEach(b =>
+                b.classList.toggle('on', (b.dataset.weekend === 'true') === p.weekend));
             await applyIngress(p);
         });
     });
@@ -1247,7 +1559,7 @@ function initEventSetup() {
         await applyIngress({ enabled: !paused });
     });
 
-    refreshIngressReadout();
+    fetch('/api/ingress').then(r => r.json()).then(d => { syncEventSetupFromServer(d); updateIngressReadout(d); }).catch(() => {});
     setInterval(refreshIngressReadout, 5000);  // rate follows the hourly curve as sim time advances
 }
 

@@ -11,10 +11,32 @@ import logging
 
 logger = logging.getLogger("CFO")
 from .simulation import SimulationEngine, TICK_DURATION_SEC
-from .vision.pipeline import VisionPipeline
+try:
+    from .vision.pipeline import VisionPipeline
+    VISION_AVAILABLE = True
+except Exception as _vision_err:  # missing/broken vision package: run simulation-only
+    logger.warning("Vision pipeline unavailable, running simulation-only: %s", _vision_err)
+    VISION_AVAILABLE = False
+
+    class VisionPipeline:
+        """No-op stand-in so the simulation and dashboard still run."""
+        def __init__(self, grid_width=40, grid_height=30):
+            self.running = False
+            self.mode = "idle"
+            self.fps = 0
+            self.frame_count = 0
+            self.total_frames = 0
+            self.last_vlm_analysis = None
+            self.on_agents_detected = None
+            self.on_vision_update = None
+        def set_source(self, *a, **k): pass
+        def initialize(self): return {"loaded": [], "detail": "vision package unavailable"}
+        async def start(self): pass
+        def stop(self): pass
+        async def scan_videos(self, paths): pass
 
 app = FastAPI(
-    title="Crowd Flow Optimiser",
+    title="Crowd Guard",
     description="Real-time crowd simulation, bottleneck forecasting, and automated rerouting engine.",
     version="2.0.0",
 )
@@ -164,6 +186,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     rate = command.get("rate", 3.5)
                     if gate_id:
                         sim_engine.actuate_gate(gate_id, gate_action, rate)
+
+                elif action == "divert_gate":
+                    sim_engine.divert_gate(
+                        command.get("origin_gate_id"),
+                        command.get("target_gate_id"),
+                        command.get("pct", 0),
+                    )
                         
             except json.JSONDecodeError:
                 pass
@@ -268,7 +297,11 @@ async def scan_video(request: VideoScanRequest):
 @app.get("/api/vision/status")
 async def vision_status():
     """Return current vision pipeline status."""
-    from .vision.model_manager import model_manager
+    try:
+        from .vision.model_manager import model_manager
+        mm_status = model_manager.get_status()
+    except Exception:
+        mm_status = {"gpu_available": False, "models": {}}
     return {
         "running": vision_pipeline.running,
         "mode": vision_pipeline.mode,
@@ -276,7 +309,7 @@ async def vision_status():
         "frame": vision_pipeline.frame_count,
         "total_frames": vision_pipeline.total_frames,
         "vlm_analysis": vision_pipeline.last_vlm_analysis,
-        "model_manager": model_manager.get_status(),
+        "model_manager": mm_status,
     }
 
 @app.get("/api/vision/pick-files")
@@ -426,6 +459,38 @@ async def set_ingress(request: IngressConfigRequest):
             model.scale = request.scale
 
     return {"status": "success", "enabled": sim_engine.auto_ingress, **model.describe()}
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# AUTOPILOT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class AutopilotConfigRequest(BaseModel):
+    enabled: Optional[bool] = None
+    wait_sec: Optional[int] = None
+
+
+@app.get("/api/autopilot")
+async def get_autopilot(limit: int = 100):
+    """Autopilot status plus its activity log (newest first)."""
+    ap = sim_engine.autopilot
+    return {**ap.status(), "log": ap.recent(max(1, min(limit, 200)))}
+
+
+@app.post("/api/autopilot")
+async def set_autopilot(request: AutopilotConfigRequest):
+    """Turn Autopilot on/off and set how long it waits for an operator before acting."""
+    ap = sim_engine.autopilot
+    ap.set_config(enabled=request.enabled, wait_sec=request.wait_sec, sim_time=sim_engine.sim_time)
+    return {**ap.status(), "log": ap.recent(100)}
+
+
+@app.post("/api/autopilot/ack")
+async def ack_autopilot():
+    """Mark everything in the activity log as read."""
+    ap = sim_engine.autopilot
+    ap.acknowledge()
+    return {**ap.status(), "log": ap.recent(100)}
 
 
 class SpeedControlRequest(BaseModel):

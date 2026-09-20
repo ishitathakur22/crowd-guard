@@ -1,5 +1,5 @@
 @echo off
-echo Starting Crowd Flow Optimiser (GPU mode)...
+echo Starting Crowd Guard (GPU mode)...
 
 if not exist ".venv\Scripts\python.exe" (
     echo Please run setup.bat first!

@@ -9,7 +9,7 @@ set -e
 cd "$(dirname "$0")"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Crowd Flow Optimiser - macOS Setup"
+echo "  Crowd Guard - macOS Setup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if [ ! -x ".venv/bin/python" ]; then

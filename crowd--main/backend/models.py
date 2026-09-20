@@ -60,6 +60,7 @@ class AgentProfile(BaseModel):
     B: float = 0.08                # Repulsion range
     stair_factor_up: float = 0.5   # Speed multiplier going up stairs
     stair_factor_down: float = 0.7 # Speed multiplier going down stairs
+    
 
 
 # Preset demographic profiles
@@ -96,6 +97,7 @@ class GateState(BaseModel):
     agents_passed: int = 0
     queue_length: int = 0          # people waiting outside this gate
     wait_time_sec: float = 0.0     # queue_length / admit rate (0 when closed or empty)
+    arrival_weight: float = 1.0
 
 
 class ZoneDensity(BaseModel):
@@ -190,3 +192,6 @@ class SimulationState(BaseModel):
     sim_time_sec: float = 0.0
     sim_speed: float = 1.0
     clock_hour: float = 0.0        # wall-clock hour (0-24) from the arrival model
+    autopilot: Dict = {}             # Autopilot status: enabled, wait_sec, pending, log_seq, unseen
+    forecast_warnings: List[Dict] = []  # zones forecast to pile up within 15 min: {cell_x, cell_y, eta_sec, peak_density, current_density}
+    active_diverts: List[Dict] = []  # [{origin, target, pct, remaining_sec}] operator gate diverts in effect

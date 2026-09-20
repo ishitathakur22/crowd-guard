@@ -5,7 +5,7 @@ set TMP=C:\temp
 set TEMP=C:\temp
 
 echo ==============================================
-echo   Crowd Flow Optimiser - AI Pipeline Setup
+echo   Crowd Guard - AI Pipeline Setup
 echo ==============================================
 echo.
 

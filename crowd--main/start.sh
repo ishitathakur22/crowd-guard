@@ -8,5 +8,5 @@ if [ ! -x ".venv/bin/python" ]; then
     exit 1
 fi
 
-echo "Starting Crowd Flow Optimiser on http://localhost:8001 ..."
+echo "Starting Crowd Guard on http://localhost:8001 ..."
 exec ./.venv/bin/python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8001

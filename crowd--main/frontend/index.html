@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crowd Flow Optimiser — Real-Time Crowd Simulation & Rerouting</title>
+    <title>Crowd Guard — Real-Time Crowd Simulation & Rerouting</title>
     <meta name="description"
         content="Predictive digital twin for venue crowd management. Real-time simulation, bottleneck forecasting, and automated crowd rerouting engine.">
     <link rel="stylesheet" href="styles.css?v=4">
@@ -27,7 +27,7 @@
                     <circle cx="32" cy="26" r="4" fill="#5EC8D8" />
                 </svg>
                 <div>
-                    <h1>Crowd Flow Optimiser</h1>
+                    <h1>Crowd Guard</h1>
                     <p class="tagline">Live venue simulation · bottleneck detection · dynamic rerouting</p>
                 </div>
             </div>
@@ -310,6 +310,55 @@
                 </div>
             </section>
 
+            <!-- ━━━ AUTOPILOT ━━━ -->
+            <section class="panel" id="panel-autopilot">
+                <div class="panel-header">
+                    <span class="panel-title">Autopilot</span>
+                    <span class="badge-count zero" id="ap-unseen" title="Autopilot actions you haven't read yet">0</span>
+                </div>
+
+                <div class="ap-row">
+                    <label class="ap-switch" title="Let the system divert gates by itself when nobody responds">
+                        <input type="checkbox" id="ap-toggle">
+                        <span class="ap-slider"></span>
+                    </label>
+                    <span class="ap-status" id="ap-status">Off: every decision waits for you</span>
+                </div>
+
+                <div class="ap-wait-label">Act if nobody responds within</div>
+                <div class="ap-wait" id="ap-wait">
+                    <button class="ap-wait-btn" data-wait="0">Now</button>
+                    <button class="ap-wait-btn" data-wait="15">15s</button>
+                    <button class="ap-wait-btn on" data-wait="30">30s</button>
+                    <button class="ap-wait-btn" data-wait="60">60s</button>
+                    <button class="ap-wait-btn" data-wait="90">90s</button>
+                    <button class="ap-wait-btn" data-wait="120">2m</button>
+                </div>
+
+                <div id="ap-pending"></div>
+
+                <div class="ap-log-head">
+                    <span>Activity log</span>
+                    <button class="ap-link" id="ap-ack">Mark all read</button>
+                </div>
+                <div class="ap-log" id="ap-log">
+                    <div class="ap-empty">No activity yet.</div>
+                </div>
+            </section>
+
+            <!-- Prediction Timeline -->
+            <section class="panel" id="panel-prediction">
+                <div class="panel-header">
+                    <span class="panel-title">15-Min Forecast</span>
+                    <span class="panel-badge" id="prediction-status">Idle</span>
+                </div>
+                <div class="prediction-timeline" id="prediction-timeline">
+                    <div style="font-size: 0.72rem; color: var(--text-dim); text-align: center; padding: 16px;">
+                        Predictions generate after 5+ agents are active
+                    </div>
+                </div>
+            </section>
+
             <!-- ━━━ AI SCENE INTELLIGENCE (VLM) ━━━ -->
             <section class="panel" id="panel-vlm">
                 <div class="panel-header">
@@ -336,18 +385,6 @@
                 </div>
             </section>
 
-            <!-- Prediction Timeline -->
-            <section class="panel" id="panel-prediction">
-                <div class="panel-header">
-                    <span class="panel-title">15-Min Forecast</span>
-                    <span class="panel-badge" id="prediction-status">Idle</span>
-                </div>
-                <div class="prediction-timeline" id="prediction-timeline">
-                    <div style="font-size: 0.72rem; color: var(--text-dim); text-align: center; padding: 16px;">
-                        Predictions generate after 5+ agents are active
-                    </div>
-                </div>
-            </section>
 
             <!-- Active Reroutes -->
             <section class="panel" id="panel-reroutes">
