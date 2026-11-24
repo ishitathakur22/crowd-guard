@@ -10,6 +10,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv*/
 venv/
 env/
 ENV/
@@ -48,6 +49,8 @@ Desktop.ini
 # Local data / generated output
 *.sqlite3
 *.db
+autopilot_log.jsonl
+*.jsonl
 coverage.xml
 .htmlcov/
 

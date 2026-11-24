@@ -75,6 +75,27 @@ The terminal will display the Uvicorn server logs, and it will automatically ope
 - The **Recommended Actions** panel lists zones the 15-minute forecast expects to hit critical density, soonest first, each with a one-click **Divert** button that reroutes a share of a congested gate's new arrivals to a less-loaded one.
 - Turn on **Autopilot** to have the system apply that same divert automatically if nobody responds within a configurable window (Now / 15s / 30s / 60s / 90s / 2m). It only acts on pile-ups that are both imminent and already busy right now, never closes or throttles a gate, and everything it does is written to the **Activity Log** for review.
 
+## Deploy on Render
+
+This repository includes a [`render.yaml`](render.yaml) blueprint configured for Render's free tier (Python web service, persistent WebSockets, 512 MB RAM).
+
+### Deployment Steps
+
+1. **Fork or push** this repository to your GitHub account.
+2. Sign in to [Render](https://dashboard.render.com/) and navigate to **Blueprints** → **New Blueprint Instance**.
+3. Connect your GitHub repository. Render will detect [`render.yaml`](render.yaml) and configure the service automatically:
+   - **Environment:** Python
+   - **Plan:** Free
+   - **Build Command:** `pip install -r requirements-deploy.txt`
+   - **Start Command:** `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+   - **Health Check Path:** `/health`
+   - **Environment Variables:** `ENABLE_VISION=0`
+4. Click **Apply**. Once deployed, open the assigned `https://<service-name>.onrender.com` URL to view the live simulation.
+
+> **Note on Free Tier:**
+> - Free web services on Render automatically spin down (sleep) after 15 minutes of inactivity. Incoming requests will wake the instance up (taking ~30–50 seconds on cold start).
+> - The deployed build runs with `ENABLE_VISION=0` to stay strictly within the 512 MB RAM allowance. The simulation, digital twin physics, 15-minute predictive forecasting, Recommended Actions, gate divert routing, and Autopilot are fully functional, while the local AI vision stack (YOLO/MiDaS/SmolVLM) is cleanly disabled.
+
 ## Project Structure
 
 ```

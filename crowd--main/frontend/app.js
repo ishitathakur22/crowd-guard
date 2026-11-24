@@ -115,9 +115,8 @@ function getCellColor(type) {
 
 function initWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname || 'localhost';
-    const port = window.location.port || '8000';
-    const wsUrl = `${protocol}//${host}:${port}/ws`;
+    const host = window.location.host || 'localhost:8001';
+    const wsUrl = `${protocol}//${host}/ws`;
 
     ws = new WebSocket(wsUrl);
 
@@ -548,6 +547,7 @@ function updateAllUI() {
 
     // NEW: Recommended Actions + Event Setup clock
     renderRecommendedActions(s);
+    renderAutopilot(s);
 
     const esClock = document.getElementById('es-clock');
     if (esClock) esClock.textContent = hourLabel(s.clock_hour ?? 0);
@@ -904,6 +904,12 @@ function _renderRecommendedActionsNow(s) {
                        Divert ${pct}%
                      </button>
                    </div>`;
+
+            const ap = s.autopilot;
+            const pend = ap && ap.enabled ? (ap.pending || []).find(p => p.origin === originGate.gate_id) : null;
+            if (pend && pend.seconds_left != null) {
+                divertBlock += `<div class="ra-auto-note">🤖 Autopilot will divert ${pend.pct}% in ${pend.seconds_left}s unless you act</div>`;
+            }
         } else if (target && targetLabel) {
             action = `${name} reaches LoS ${z.fruin_los || z.severity} (${dens.toFixed(1)} p/m²)${etaPhrase}. Shift intake toward <b>${targetLabel}</b>.`;
         } else {
@@ -952,6 +958,107 @@ document.getElementById('ra-list')?.addEventListener('click', (e) => {
     if (!btn) return;
     handleDivert(btn.dataset.origin, btn.dataset.target, Number(btn.dataset.pct));
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// AUTOPILOT: status comes with every state update; the activity log is
+// fetched only when the backend says it changed (log_seq).
+// ═══════════════════════════════════════════════════════════════════
+
+let _apLogSeq = null;
+let _apLogHtml = null;
+
+function escapeHtml(t) {
+    return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function apPost(path, body) {
+    return fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {}),
+    })
+        .then(r => r.json())
+        .then(d => { _apLogSeq = d.log_seq; renderApStatus(d); renderApLog(d.log || [], d.ack_seq); })
+        .catch(err => console.error('[Autopilot]', err));
+}
+
+function fetchApLog() {
+    fetch('/api/autopilot')
+        .then(r => r.json())
+        .then(d => { _apLogSeq = d.log_seq; renderApLog(d.log || [], d.ack_seq); })
+        .catch(() => {});
+}
+
+function renderApStatus(ap) {
+    const toggle = document.getElementById('ap-toggle');
+    const status = document.getElementById('ap-status');
+    const wait = document.getElementById('ap-wait');
+    const pendingEl = document.getElementById('ap-pending');
+    const unseen = document.getElementById('ap-unseen');
+    if (!toggle || !status) return;
+
+    toggle.checked = !!ap.enabled;
+    status.classList.toggle('on', !!ap.enabled);
+    status.textContent = ap.enabled
+        ? `On: diverts ${ap.wait_sec === 0 ? 'immediately' : `after ${ap.wait_sec}s without a response`} `
+          + `(only where already busy and a pile-up is due within ${Math.round(ap.max_eta_sec / 60)} min; max ${ap.max_pct}%)`
+        : 'Off: every decision waits for you';
+
+    if (wait) wait.querySelectorAll('.ap-wait-btn').forEach(b =>
+        b.classList.toggle('on', Number(b.dataset.wait) === ap.wait_sec));
+
+    if (pendingEl) {
+        const items = ap.enabled ? (ap.pending || []) : [];
+        pendingEl.innerHTML = items.map(p =>
+            `<div class="ap-pending-item">🤖 ${escapeHtml(gateLabel({ gate_id: p.origin }))} → ` +
+            `${escapeHtml(gateLabel({ gate_id: p.target }))} ` +
+            `${p.pct}% (${escapeHtml(p.zone)}) in ${p.seconds_left ?? 0}s unless you act</div>`).join('');
+    }
+
+    if (unseen) {
+        unseen.textContent = ap.unseen || 0;
+        unseen.classList.toggle('zero', !ap.unseen);
+    }
+}
+
+function renderApLog(log, ackSeq) {
+    const el = document.getElementById('ap-log');
+    if (!el) return;
+    const html = !log.length
+        ? '<div class="ap-empty">No activity yet.</div>'
+        : log.map(e => {
+            const cls = e.source === 'autopilot' ? 'auto' : e.source === 'operator' ? 'you' : '';
+            const tag = e.source === 'autopilot' ? 'AUTO' : e.source === 'operator' ? 'YOU' : 'SYSTEM';
+            const t = new Date(e.ts * 1000).toLocaleTimeString();
+            const sim = Math.floor(e.sim_time_sec || 0);
+            const simLabel = `T+${String(Math.floor(sim / 60)).padStart(2, '0')}:${String(sim % 60).padStart(2, '0')}`;
+            return `<div class="ap-entry ${cls} ${e.id > ackSeq ? 'unseen' : ''}">
+                <div class="ap-entry-meta"><span class="ap-tag">${tag}</span><span>${t} · ${simLabel}</span></div>
+                ${escapeHtml(e.message)}
+            </div>`;
+        }).join('');
+    if (html !== _apLogHtml) {          // don't reset the scroll position for nothing
+        el.innerHTML = html;
+        _apLogHtml = html;
+    }
+}
+
+function renderAutopilot(s) {
+    const ap = s.autopilot;
+    if (!ap) return;
+    renderApStatus(ap);
+    if (ap.log_seq !== _apLogSeq) {     // something new was logged (or first load)
+        _apLogSeq = ap.log_seq;
+        fetchApLog();
+    }
+}
+
+document.getElementById('ap-toggle')?.addEventListener('change', e => apPost('/api/autopilot', { enabled: e.target.checked }));
+document.getElementById('ap-wait')?.addEventListener('click', e => {
+    const btn = e.target.closest('.ap-wait-btn');
+    if (btn) apPost('/api/autopilot', { wait_sec: Number(btn.dataset.wait) });
+});
+document.getElementById('ap-ack')?.addEventListener('click', () => apPost('/api/autopilot/ack'));
 
 // ═══════════════════════════════════════════════════════════════════
 // GATE CONTROL
@@ -1430,10 +1537,31 @@ function initEventSetup() {
     setInterval(refreshIngressReadout, 5000);  // rate follows the hourly curve as sim time advances
 }
 
+async function checkConfig() {
+    try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+            const cfg = await res.json();
+            if (cfg.vision_enabled === false) {
+                const pVision = document.getElementById('panel-vision');
+                const pVlm = document.getElementById('panel-vlm');
+                const pDetections = document.getElementById('panel-detections');
+                if (pVision) pVision.style.display = 'none';
+                if (pVlm) pVlm.style.display = 'none';
+                if (pDetections) pDetections.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        // Ignore fetch errors, keep defaults
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════
 
+checkConfig();
+fetchApLog();
 initEventSetup();
 initWebSocket();
 requestAnimationFrame(draw);
