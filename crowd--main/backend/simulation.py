@@ -130,8 +130,10 @@ class SimulationEngine:
         self._diverts: Dict[str, dict] = {}       # origin gate id -> {target, pct, until}
         self.forecast_warnings: List[dict] = []   # early pile-up warnings (see PredictionEngine.early_warnings)
         self._landmarks = None                    # cached (x, y, label) for named zones
+        data_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(data_dir, exist_ok=True)
         self.autopilot = Autopilot(
-            log_path=os.path.join(os.path.dirname(__file__), "data", "autopilot_log.jsonl")
+            log_path=os.path.join(data_dir, "autopilot_log.jsonl")
         )
 
         # Active reroute tracking
