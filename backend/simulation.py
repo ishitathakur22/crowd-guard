@@ -4,6 +4,7 @@ prediction forecasting, dynamic rerouting, and gate actuation.
 """
 
 import os
+import threading
 import time
 import numpy as np
 from typing import List, Dict, Tuple, Optional
@@ -53,6 +54,15 @@ class SimulationEngine:
         self.seed = self.rng.seed
 
         self.grid = self._generate_default_grid()
+        # Published snapshots. `update()` runs on an executor thread while the
+        # websocket broadcaster reads state on the event loop, so the reader must
+        # never touch `self.agents` - it would iterate a list that is being mutated
+        # underneath it. Instead the tick builds a plain dict of primitives at its
+        # end, under this lock, and readers only ever see a finished snapshot.
+        self._state_lock = threading.Lock()
+        self._state_snapshot: Optional[dict] = None
+        self._heatmap_snapshot: Optional[dict] = None
+
         self.agents: List[Agent] = []
         self.real_agents: List[Dict] = []  # Added for Vision Pipeline
         self.bottlenecks: List[Point] = []
@@ -477,6 +487,11 @@ class SimulationEngine:
 
         # 11. Autopilot: apply recommendations nobody has acted on within the response window
         self.autopilot.evaluate(self)
+
+        # 12. Publish an immutable snapshot for the event loop to broadcast. Built
+        # here, on the thread that owns the data, so no reader can observe a partly
+        # updated crowd.
+        self._publish_snapshot()
     
     def _handle_rerouting(self, raw_density: np.ndarray):
         """Reroute agents whose paths intersect critical zones."""
@@ -724,7 +739,38 @@ class SimulationEngine:
         )
         return True
 
+    def _publish_snapshot(self):
+        """Build the state and heatmap payloads once, then swap them in."""
+        state = self._build_state()
+        heatmap = {
+            "heatmap": self.density_heatmap,
+            "flow_vectors": self.flow_vectors,
+            "width": self.width,
+            "height": self.height,
+        }
+        with self._state_lock:
+            self._state_snapshot = state
+            self._heatmap_snapshot = heatmap
+
     def get_state(self) -> dict:
+        """
+        The most recently published state snapshot.
+
+        Returns the dict built at the end of the last tick rather than walking the
+        live agent list, because this is called from the event loop while `update()`
+        runs on an executor thread. If no tick has completed yet, one is built here
+        so a fresh client still gets a valid payload - it can only race with the very
+        first tick, when the crowd is empty and there is nothing to corrupt.
+        """
+        with self._state_lock:
+            snapshot = self._state_snapshot
+        if snapshot is None:
+            snapshot = self._build_state()
+            with self._state_lock:
+                self._state_snapshot = snapshot
+        return snapshot
+
+    def _build_state(self) -> dict:
         total_rerouted = sum(1 for a in self.agents if a.rerouted)
         densities = [zd.density for zd in self.zone_densities] if self.zone_densities else [0.0]
         
@@ -756,10 +802,16 @@ class SimulationEngine:
         ).model_dump()
     
     def get_heatmap_data(self) -> dict:
-        """Return heatmap + flow vector data for frontend rendering."""
-        return {
-            "heatmap": self.density_heatmap,
-            "flow_vectors": self.flow_vectors,
-            "width": self.width,
-            "height": self.height,
-        }
+        """The most recently published heatmap payload. See `get_state`."""
+        with self._state_lock:
+            snapshot = self._heatmap_snapshot
+        if snapshot is None:
+            snapshot = {
+                "heatmap": self.density_heatmap,
+                "flow_vectors": self.flow_vectors,
+                "width": self.width,
+                "height": self.height,
+            }
+            with self._state_lock:
+                self._heatmap_snapshot = snapshot
+        return snapshot

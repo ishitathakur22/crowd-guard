@@ -5,12 +5,17 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from typing import List, Optional
 import asyncio
+import time
 import os
 import json
 import logging
 
 logger = logging.getLogger("CFO")
 from .simulation import SimulationEngine, TICK_DURATION_SEC
+
+# Smallest gap between ticks, so a high speed multiplier cannot spin the loop
+# with no opportunity to serve websockets.
+MIN_TICK_PERIOD_SEC = 0.002
 
 ENABLE_VISION_ENV = os.environ.get("ENABLE_VISION", "1").strip().lower()
 ENABLE_VISION = ENABLE_VISION_ENV not in ("0", "false", "no")
@@ -84,20 +89,48 @@ async def startup_event():
     asyncio.create_task(simulation_loop())
 
 async def simulation_loop():
+    """
+    Drive the simulation on a monotonic deadline.
+
+    The old loop slept `TICK_DURATION_SEC / speed` *after* doing the tick, so the
+    real period was `tick_work + sleep`. At 1x with a 17 ms tick that ran ~3% fast;
+    at 10x with the same work the intended 50 ms period became 67 ms, so "10x" was
+    really 7.5x - and the slower the machine, the less the speed control meant. The
+    measured headroom reported by scripts/bench.py is the honest figure; this keeps
+    the simulation clock agreeing with it.
+
+    Scheduling against an absolute deadline makes the period independent of how long
+    the tick took. When a tick overruns its slot the deadline is re-based rather than
+    firing a burst of catch-up ticks, which would simulate a crowd faster than real
+    time and distort every forecast made from it.
+    """
     sim_engine.running = True
     loop = asyncio.get_event_loop()
+    next_deadline = time.monotonic()
+
     while sim_engine.running:
         speed = sim_engine.sim_speed          # read once — it can change mid-tick
-        if speed > 0:
-            try:
-                await loop.run_in_executor(None, sim_engine.update)
-            except Exception:
-                logger.exception("Simulation tick failed")
-                await asyncio.sleep(0.5)
-                continue
-            await asyncio.sleep(max(0.02, TICK_DURATION_SEC / max(speed, 0.1)))
-        else:
+        if speed <= 0:
             await asyncio.sleep(0.5)
+            next_deadline = time.monotonic()  # resuming must not replay the pause
+            continue
+
+        period = max(MIN_TICK_PERIOD_SEC, TICK_DURATION_SEC / max(speed, 0.1))
+        try:
+            await loop.run_in_executor(None, sim_engine.update)
+        except Exception:
+            logger.exception("Simulation tick failed")
+            await asyncio.sleep(0.5)
+            next_deadline = time.monotonic()
+            continue
+
+        next_deadline += period
+        now = time.monotonic()
+        if next_deadline < now:
+            # The tick overran its slot. Re-base instead of catching up.
+            next_deadline = now
+        else:
+            await asyncio.sleep(next_deadline - now)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # WEBSOCKET CONNECTION MANAGER
