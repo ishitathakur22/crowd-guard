@@ -11,6 +11,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .pytype/
+.hypothesis/
 
 # --- Virtual Environments & Env Files -----------------------------------------
 .venv/
@@ -43,9 +44,15 @@ weights/
 *.sqlite3
 *.db
 autopilot_log.jsonl
+backend/data/autopilot_log.jsonl
 *.jsonl
+.coverage
+.coverage.*
 coverage.xml
+htmlcov/
 .htmlcov/
+*.prof
+*.lprof
 
 # --- Local Runtime Artifacts, Logs & Temp Files -------------------------------
 backend/.cache/
