@@ -46,6 +46,42 @@ LOS_SEVERITY = {
 }
 
 
+def local_density(field, radius: int = 1):
+    """
+    The single measure of local density, in people/m2.
+
+    A cell is 1 m2, so the mean people-count over a (2r+1) x (2r+1) window is a
+    density in people/m2. Smoothing is necessary because a raw per-cell count is a
+    very noisy estimate of how crowded a place is:
+
+      * One person standing alone in a cell reads as 1.0 p/m2, which is Fruin LoS
+        C ("restricted movement"). That is plainly wrong - a lone pedestrian is
+        LoS A.
+      * Three people spread across two adjacent cells is genuine congestion, but a
+        per-cell maximum reports 2.0 rather than the 1.5 the pair really averages.
+
+    Everything that reports a density must go through this function. Previously
+    `classify_zones` and `detect_hazards` used per-cell counts while the forecast's
+    early warnings used a neighbourhood maximum, so the same corner of the venue
+    showed two different numbers on the same dashboard - and a threshold applied to
+    one was meaningless when compared against the other.
+    """
+    import numpy as np
+
+    field = np.asarray(field, dtype=np.float64)
+    r = int(radius)
+    if r <= 0:
+        return field
+    h, w = field.shape
+    padded = np.pad(field, r, mode="constant", constant_values=0.0)
+    size = 2 * r + 1
+    total = np.zeros_like(field)
+    for dy in range(size):
+        for dx in range(size):
+            total += padded[dy:dy + h, dx:dx + w]
+    return total / float(size * size)
+
+
 def classify_fruin(density: float) -> FruinLoS:
     """Classify density value to Fruin Level-of-Service."""
     for threshold, los in FRUIN_THRESHOLDS:
@@ -103,6 +139,10 @@ class DensityAnalyzer:
                 
         return density
     
+    def local_density(self, raw_density: np.ndarray, radius: int = 1) -> np.ndarray:
+        """Local density in people/m2 for every cell. See the module-level helper."""
+        return local_density(raw_density, radius)
+
     def compute_smoothed_density(self, raw_density: np.ndarray) -> np.ndarray:
         """Apply Gaussian kernel smoothing to raw density for heatmap visualization."""
         h, w = raw_density.shape
@@ -146,24 +186,29 @@ class DensityAnalyzer:
         return flow
     
     def classify_zones(self, raw_density: np.ndarray) -> List[ZoneDensity]:
-        """Classify every non-zero cell by Fruin LoS."""
+        """
+        Classify every non-zero cell by Fruin LoS.
+
+        `density` and `los_level` come from `local_density`; `agent_count` stays the
+        raw per-cell headcount, because that is what it says it is. Only cells that
+        actually hold someone are emitted, so the payload stays bounded.
+        """
         zones = []
-        
-        for y in range(self.height):
-            for x in range(self.width):
-                d = raw_density[y][x]
-                if d > 0:
-                    trend = self._compute_trend(x, y)
-                    zones.append(ZoneDensity(
-                        zone_id=f"cell_{x}_{y}",
-                        cell_x=x,
-                        cell_y=y,
-                        density=round(d, 2),
-                        agent_count=int(d),
-                        los_level=classify_fruin(d),
-                        trend=trend,
-                    ))
-                    
+        smoothed = local_density(raw_density, self.kernel_radius)
+
+        ys, xs = np.nonzero(raw_density > 0)
+        for y, x in zip(ys.tolist(), xs.tolist()):
+            d = float(smoothed[y][x])
+            zones.append(ZoneDensity(
+                zone_id=f"cell_{x}_{y}",
+                cell_x=x,
+                cell_y=y,
+                density=round(d, 2),
+                agent_count=int(raw_density[y][x]),
+                los_level=classify_fruin(d),
+                trend=self._compute_trend(x, y),
+            ))
+
         return zones
     
     def detect_hazards(
@@ -176,11 +221,19 @@ class DensityAnalyzer:
         If predicted_density is provided, include future forecast data.
         """
         hazards = []
-        
-        for y in range(self.height):
-            for x in range(self.width):
-                current_d = raw_density[y][x]
-                predicted_d = predicted_density[y][x] if predicted_density is not None else current_d
+
+        # Same measure as `classify_zones`, so a hazard and a zone label never
+        # disagree about how crowded the same cell is.
+        current = local_density(raw_density, self.kernel_radius)
+        if predicted_density is not None:
+            predicted = local_density(predicted_density, self.kernel_radius)
+        else:
+            predicted = current
+
+        ys, xs = np.nonzero(raw_density > 0)
+        for y, x in zip(ys.tolist(), xs.tolist()):
+                current_d = float(current[y][x])
+                predicted_d = float(predicted[y][x])
                 
                 # Flag if current OR predicted density is concerning (LoS D+)
                 max_d = max(current_d, predicted_d)
@@ -250,8 +303,17 @@ class DensityAnalyzer:
         return new_alerts
     
     def update_history(self, raw_density: np.ndarray):
-        """Store density snapshot for trend analysis."""
-        self.density_history.append(raw_density.copy())
+        """
+        Store a density snapshot for trend analysis.
+
+        The snapshot is smoothed with the same `local_density` measure as everything
+        else, because `_compute_trend` and `_density_rise_rate` read this history and
+        their results are compared against the densities those functions report.
+        Storing raw counts here while reporting smoothed ones would have made the
+        trend and the time-to-choke describe a different quantity from the LoS label
+        printed beside them.
+        """
+        self.density_history.append(local_density(raw_density, self.kernel_radius))
         if len(self.density_history) > self.history_max_len:
             self.density_history.pop(0)
     
@@ -264,10 +326,13 @@ class DensityAnalyzer:
         if len(recent) < 2:
             return "stable"
         
+        # Thresholds for a smoothed density. A per-cell count moves in whole
+        # people, so 0.5 was a reasonable cut there; a 3x3 mean moves in ninths, so
+        # the equivalent sensitivity is about a fifth.
         diff = recent[-1] - recent[0]
-        if diff > 0.5:
+        if diff > 0.2:
             return "rising"
-        elif diff < -0.5:
+        elif diff < -0.2:
             return "falling"
         return "stable"
     

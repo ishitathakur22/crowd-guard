@@ -36,7 +36,7 @@ from .models import (
     Agent, Point, PredictionSnapshot, HazardZone, ZoneDensity,
     RerouteRecommendation, FruinLoS, AlertSeverity
 )
-from .density import DensityAnalyzer, classify_fruin
+from .density import DensityAnalyzer, classify_fruin, local_density
 from .pathfinding import a_star_search
 from .rng import Rng
 
@@ -51,16 +51,19 @@ _NEIGHBOURS8 = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1
 
 
 def _local_max(field: np.ndarray, r: int = 1) -> np.ndarray:
-    """Max of each cell's (2r+1)x(2r+1) neighbourhood. Forecast agents drift a cell or two
-    from where the live ones stand, so matching on the neighbourhood is more robust than
-    on the single cell."""
-    h, w = field.shape
-    padded = np.pad(field, r, mode="constant", constant_values=0)
-    out = np.zeros_like(field)
-    for dy in range(2 * r + 1):
-        for dx in range(2 * r + 1):
-            np.maximum(out, padded[dy:dy + h, dx:dx + w], out=out)
-    return out
+    """
+    Local density, as the one shared measure defined in `density.local_density`.
+
+    This used to take the *maximum* of each cell's neighbourhood while the live
+    analyzer reported a per-cell count, so a warning's "density" and the LoS label
+    printed beside it were two different quantities. Both now go through the same
+    function, so a threshold means the same thing on either side.
+
+    The neighbourhood look is still what makes the comparison robust: forecast agents
+    drift a cell or two from where the live ones stand, so a smoothed window agrees
+    better than a single cell would.
+    """
+    return local_density(field, r)
 
 
 class PredictionEngine:

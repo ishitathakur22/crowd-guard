@@ -1,0 +1,233 @@
+{
+  "seed": 1337,
+  "python": "3.12.10",
+  "tick_duration_sec": 0.5,
+  "results": [
+    {
+      "agents_requested": 200,
+      "agents_populated": 200,
+      "initial_spawn_ms": 341.0,
+      "rss_mb": 62.1,
+      "stages": {
+        "density \u00b7 raw counts": {
+          "reps": 6,
+          "mean_ms": 0.063,
+          "p50_ms": 0.062,
+          "p95_ms": 0.068,
+          "max_ms": 0.068
+        },
+        "density \u00b7 local density": {
+          "reps": 6,
+          "mean_ms": 0.034,
+          "p50_ms": 0.032,
+          "p95_ms": 0.039,
+          "max_ms": 0.039
+        },
+        "density \u00b7 gaussian smooth": {
+          "reps": 6,
+          "mean_ms": 2.997,
+          "p50_ms": 2.979,
+          "p95_ms": 3.059,
+          "max_ms": 3.059
+        },
+        "density \u00b7 flow vectors": {
+          "reps": 6,
+          "mean_ms": 1.21,
+          "p50_ms": 1.209,
+          "p95_ms": 1.22,
+          "max_ms": 1.22
+        },
+        "density \u00b7 heatmap payload": {
+          "reps": 6,
+          "mean_ms": 3.116,
+          "p50_ms": 3.079,
+          "p95_ms": 3.33,
+          "max_ms": 3.33
+        },
+        "density \u00b7 classify zones": {
+          "reps": 6,
+          "mean_ms": 0.087,
+          "p50_ms": 0.086,
+          "p95_ms": 0.092,
+          "max_ms": 0.092
+        },
+        "density \u00b7 detect hazards": {
+          "reps": 6,
+          "mean_ms": 0.095,
+          "p50_ms": 0.094,
+          "p95_ms": 0.098,
+          "max_ms": 0.098
+        },
+        "physics \u00b7 1 SFM substep": {
+          "reps": 6,
+          "mean_ms": 2.335,
+          "p50_ms": 2.307,
+          "p95_ms": 2.42,
+          "max_ms": 2.42
+        },
+        "physics \u00b7 all substeps/tick": {
+          "reps": 3,
+          "mean_ms": 11.434,
+          "p50_ms": 11.578,
+          "p95_ms": 11.653,
+          "max_ms": 11.653
+        },
+        "reroute \u00b7 cached flow field": {
+          "reps": 2,
+          "mean_ms": 6.917,
+          "p50_ms": 6.78,
+          "p95_ms": 7.054,
+          "max_ms": 7.054
+        },
+        "reroute \u00b7 incl. field rebuild": {
+          "reps": 2,
+          "mean_ms": 6.749,
+          "p50_ms": 6.689,
+          "p95_ms": 6.809,
+          "max_ms": 6.809
+        },
+        "forecast \u00b7 15 min horizon": {
+          "reps": 2,
+          "mean_ms": 172.767,
+          "p50_ms": 171.569,
+          "p95_ms": 173.964,
+          "max_ms": 173.964
+        },
+        "serialise \u00b7 get_state()": {
+          "reps": 6,
+          "mean_ms": 1.843,
+          "p50_ms": 1.761,
+          "p95_ms": 2.235,
+          "max_ms": 2.235
+        },
+        "spawn \u00b7 10 agents (A* each)": {
+          "reps": 2,
+          "mean_ms": 10.938,
+          "p50_ms": 8.439,
+          "p95_ms": 13.436,
+          "max_ms": 13.436
+        },
+        "TICK \u00b7 update() end to end": {
+          "reps": 3,
+          "mean_ms": 16.192,
+          "p50_ms": 16.203,
+          "p95_ms": 16.483,
+          "max_ms": 16.483
+        }
+      }
+    },
+    {
+      "agents_requested": 500,
+      "agents_populated": 500,
+      "initial_spawn_ms": 892.7,
+      "rss_mb": 71.2,
+      "stages": {
+        "density \u00b7 raw counts": {
+          "reps": 6,
+          "mean_ms": 0.158,
+          "p50_ms": 0.158,
+          "p95_ms": 0.162,
+          "max_ms": 0.162
+        },
+        "density \u00b7 local density": {
+          "reps": 6,
+          "mean_ms": 0.035,
+          "p50_ms": 0.032,
+          "p95_ms": 0.042,
+          "max_ms": 0.042
+        },
+        "density \u00b7 gaussian smooth": {
+          "reps": 6,
+          "mean_ms": 3.011,
+          "p50_ms": 3.011,
+          "p95_ms": 3.044,
+          "max_ms": 3.044
+        },
+        "density \u00b7 flow vectors": {
+          "reps": 6,
+          "mean_ms": 1.503,
+          "p50_ms": 1.457,
+          "p95_ms": 1.717,
+          "max_ms": 1.717
+        },
+        "density \u00b7 heatmap payload": {
+          "reps": 6,
+          "mean_ms": 3.256,
+          "p50_ms": 3.226,
+          "p95_ms": 3.326,
+          "max_ms": 3.326
+        },
+        "density \u00b7 classify zones": {
+          "reps": 6,
+          "mean_ms": 0.083,
+          "p50_ms": 0.082,
+          "p95_ms": 0.085,
+          "max_ms": 0.085
+        },
+        "density \u00b7 detect hazards": {
+          "reps": 6,
+          "mean_ms": 0.09,
+          "p50_ms": 0.088,
+          "p95_ms": 0.096,
+          "max_ms": 0.096
+        },
+        "physics \u00b7 1 SFM substep": {
+          "reps": 6,
+          "mean_ms": 13.363,
+          "p50_ms": 13.204,
+          "p95_ms": 14.568,
+          "max_ms": 14.568
+        },
+        "physics \u00b7 all substeps/tick": {
+          "reps": 3,
+          "mean_ms": 56.932,
+          "p50_ms": 56.646,
+          "p95_ms": 57.58,
+          "max_ms": 57.58
+        },
+        "reroute \u00b7 cached flow field": {
+          "reps": 2,
+          "mean_ms": 8.432,
+          "p50_ms": 8.032,
+          "p95_ms": 8.832,
+          "max_ms": 8.832
+        },
+        "reroute \u00b7 incl. field rebuild": {
+          "reps": 2,
+          "mean_ms": 8.081,
+          "p50_ms": 7.869,
+          "p95_ms": 8.294,
+          "max_ms": 8.294
+        },
+        "forecast \u00b7 15 min horizon": {
+          "reps": 2,
+          "mean_ms": 173.777,
+          "p50_ms": 173.719,
+          "p95_ms": 173.835,
+          "max_ms": 173.835
+        },
+        "serialise \u00b7 get_state()": {
+          "reps": 6,
+          "mean_ms": 4.821,
+          "p50_ms": 4.673,
+          "p95_ms": 5.161,
+          "max_ms": 5.161
+        },
+        "spawn \u00b7 10 agents (A* each)": {
+          "reps": 2,
+          "mean_ms": 11.361,
+          "p50_ms": 9.151,
+          "p95_ms": 13.57,
+          "max_ms": 13.57
+        },
+        "TICK \u00b7 update() end to end": {
+          "reps": 3,
+          "mean_ms": 58.26,
+          "p50_ms": 58.55,
+          "p95_ms": 58.563,
+          "max_ms": 58.563
+        }
+      }
+    }
+  ]
+}
