@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, Field
 from typing import List, Tuple, Dict, Optional
 from enum import Enum
 
@@ -75,7 +75,7 @@ AGENT_PROFILES = {
 class Agent(BaseModel):
     id: int
     pos: Point
-    vel: Point = Point(x=0.0, y=0.0)
+    vel: Point = Field(default_factory=lambda: Point(x=0.0, y=0.0))
     goal: Point
     path: List[Point] = []
     status: str = "moving"

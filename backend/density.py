@@ -17,6 +17,12 @@ import time
 import uuid
 
 
+# Simulated seconds advanced per density-history sample. Must match
+# `simulation.TICK_DURATION_SEC`: history is appended once per tick, and
+# `_density_rise_rate` converts a per-sample change into a per-second rate
+# using this value. Duplicated rather than imported to avoid a circular import.
+TICK_DURATION_SEC = 0.5
+
 # Fruin LoS thresholds (people/m²)
 FRUIN_THRESHOLDS = [
     (0.31, FruinLoS.A),
@@ -266,7 +272,7 @@ class DensityAnalyzer:
         return "stable"
     
     def _density_rise_rate(self, x: int, y: int) -> float:
-        """Compute density rise rate (people/m²/step) at a cell."""
+        """Density rise rate at a cell, in people/m2 per second."""
         if len(self.density_history) < 3:
             return 0.0
         
@@ -275,7 +281,17 @@ class DensityAnalyzer:
             return 0.0
         
         # Linear regression-ish: just slope over recent window
-        return (recent[-1] - recent[0]) / len(recent)
+        # `detect_hazards` divides a density gap by this value to get a
+        # time-to-choke in seconds, so the denominator has to be elapsed simulated
+        # time - not the number of samples. Dividing by the sample count gave a
+        # per-sample slope, which overstated the rise by len(recent)/2 and inflated
+        # every reported time-to-choke by about 2.5x. A crowd reported as 2.5x
+        # further from a crush than it is, is exactly the error this dashboard
+        # exists to prevent.
+        span_sec = (len(recent) - 1) * TICK_DURATION_SEC
+        if span_sec <= 0:
+            return 0.0
+        return (recent[-1] - recent[0]) / span_sec
     
     def get_density_grid_for_heatmap(self, agents: List[Agent]) -> List[List[float]]:
         """

@@ -28,6 +28,7 @@ The step loop is vectorised over agents so the whole horizon stays well under a
 second and can run inside a thread executor without stalling the event loop.
 """
 
+import heapq
 import numpy as np
 from typing import List, Optional
 
@@ -37,12 +38,16 @@ from .models import (
 )
 from .density import DensityAnalyzer, classify_fruin
 from .pathfinding import a_star_search
+from .rng import Rng
 
 
 # Density (people/m²) at which a zone counts as a "pile-up": Fruin LoS F begins here
 # (severe congestion, body contact). The early-warning list flags any zone the
 # forecast expects to reach this within the horizon.
 PILEUP_DENSITY = 2.17
+
+# 8-connected neighbourhood, used for the exit potential and its descent field.
+_NEIGHBOURS8 = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
 
 
 def _local_max(field: np.ndarray, r: int = 1) -> np.ndarray:
@@ -66,9 +71,10 @@ class PredictionEngine:
     clone forward to project density distributions 15-30 minutes into the future.
     """
 
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, rng: Rng = None):
         self.width = width
         self.height = height
+        self.rng = rng or Rng()
         self.density_analyzer = DensityAnalyzer(width, height)
 
         # Forecast configuration
@@ -86,6 +92,45 @@ class PredictionEngine:
         # simply do not fit. Without this bound the forecast happily stacks
         # dozens of people on one waypoint and reports impossible densities.
         self.cell_capacity = 5.0
+
+        # Which forward model `forecast()` uses:
+        #
+        #  "continuum" - density advected along an exit potential with
+        #                flux-conserving updates. O(cells) per step, and mass moves
+        #                strictly downhill, so flow cannot cycle and nobody can be
+        #                permanently trapped.
+        #  "particles" - the original per-agent clone. Kept because it is the model
+        #                the continuum version replaced, and because it is still
+        #                useful to compare against.
+        #
+        # Evidence for the default: on recorded trajectories the particle clone
+        # predicted a population of 552 where the truth plateaued at 351. Agents
+        # rejected from a full cell had their velocity zeroed, could never leave,
+        # were never removed, and fresh arrivals kept entering. It lost to
+        # persistence at every horizon while costing ~1 s per forecast.
+        self.spatial_model = "continuum"
+
+        # Hard occupancy limit, people per 1 m2 cell. Used as the jam density in
+        # the speed-density relation and as the cap on any single cell.
+        self.jam_density = 5.0
+        # Weidmann's published pedestrian coefficients.
+        self.weidmann_gamma = 1.913
+        self.min_speed_factor = 0.06
+        # Congestion sensitivity: multiplier on the density fed into the
+        # speed-density relation. Fitted against recorded runs rather than picked.
+        self.congestion_scale = 1.0
+        # Effective turnover, a multiplier on how fast density advances each step.
+        self.turnover_scale = 1.0
+        # Share of arrivals detouring via a concession. Off by default: measured
+        # and found to cost peak-density accuracy, so the machinery is retained but
+        # disabled.
+        self.detour_fraction = 0.0
+        self.dwell_sec = 90.0
+        self._potential_cache = {}
+        # Per-snapshot density grids from the most recent forecast, paired with the
+        # offset each represents. Kept for the accuracy harness, which compares the
+        # forecast cell by cell against recorded ground truth.
+        self.last_forecast_grids = []
 
         # Ingress. Set by the simulation engine; None disables arrival injection.
         self.arrival_model = None
@@ -126,6 +171,284 @@ class PredictionEngine:
     # ─────────────────────────────────────────────
 
     def forecast(
+        self,
+        agents: List[Agent],
+        grid: List[List[str]],
+        walls: List,
+        gates: List[Point],
+        exits: List[Point],
+        sim_time_sec: float = 0.0,
+    ) -> List[PredictionSnapshot]:
+        """Run the configured forward model. See `spatial_model`."""
+        if self.spatial_model == "particles":
+            return self._forecast_particles(agents, grid, walls, gates, exits, sim_time_sec)
+        return self._forecast_continuum(agents, grid, walls, gates, exits, sim_time_sec)
+
+    # ─────────────────────────────────────────────
+    # CONTINUUM FORECAST
+    # ─────────────────────────────────────────────
+
+    def _build_potential(self, free, targets, label="exit"):
+        """
+        Distance from every free cell to its nearest target, plus a descent field.
+
+        Dijkstra rather than BFS because diagonal steps cost sqrt(2). Cached on the
+        grid and target set, which do not change during a forecast.
+
+        The descent field is what makes this model safe: every move strictly
+        decreases the potential, so the flow graph is acyclic. No cycle means no
+        deadlock, and nobody can be trapped the way the particle clone trapped them.
+        """
+        key = (
+            free.shape,
+            hash(free.tobytes()),
+            tuple((float(t.x), float(t.y)) for t in targets),
+        )
+        cached = self._potential_cache.get(label)
+        if cached is not None and cached[0] == key:
+            return cached[1], cached[2]
+
+        h, w = free.shape
+        pot = np.full((h, w), np.inf)
+        heap = []
+        for t in targets:
+            x, y = int(t.x), int(t.y)
+            if 0 <= y < h and 0 <= x < w and free[y, x]:
+                pot[y, x] = 0.0
+                heapq.heappush(heap, (0.0, y, x))
+
+        while heap:
+            d, y, x = heapq.heappop(heap)
+            if d > pot[y, x]:
+                continue
+            for dy, dx in _NEIGHBOURS8:
+                ny, nx = y + dy, x + dx
+                if 0 <= ny < h and 0 <= nx < w and free[ny, nx]:
+                    nd = d + (1.41421356 if (dy and dx) else 1.0)
+                    if nd < pot[ny, nx]:
+                        pot[ny, nx] = nd
+                        heapq.heappush(heap, (nd, ny, nx))
+
+        best = np.full((h, w), np.inf)
+        downhill = np.full((h, w), -1, dtype=np.int32)
+        ys = np.arange(h)[:, None]
+        xs = np.arange(w)[None, :]
+        for dy, dx in _NEIGHBOURS8:
+            ty, tx = ys + dy, xs + dx
+            inside = (ty >= 0) & (ty < h) & (tx >= 0) & (tx < w)
+            src_y = np.clip(ty, 0, h - 1)
+            src_x = np.clip(tx, 0, w - 1)
+            nb = np.where(inside, pot[src_y, src_x], np.inf)
+            flat = np.where(inside, ty * w + tx, -1).astype(np.int32)
+            better = np.isfinite(nb) & (nb < best)
+            best = np.where(better, nb, best)
+            downhill = np.where(better, flat, downhill).astype(np.int32)
+
+        downhill[~np.isfinite(pot)] = -1
+        downhill[pot == 0.0] = -1
+
+        self._potential_cache[label] = (key, pot, downhill)
+        return pot, downhill
+
+    def _concession_cells(self, grid):
+        """Cells marked as concessions, taken from the grid itself."""
+        cells = []
+        for y, row in enumerate(grid[: self.height]):
+            for x, cell in enumerate(row[: self.width]):
+                if cell == "concession":
+                    cells.append(Point(x=float(x), y=float(y)))
+        return cells
+
+    def _advect(self, mass, carry, flat_downhill, out_frac, n_cells, headroom):
+        """
+        Transport mass downhill in whole cells, carrying travel progress.
+
+        Moving a *fraction* of a cell's contents each step is a blend, not transport:
+        it smears a crowd across the venue and loses where people actually are.
+        Each cell accumulates travel progress and hands over its whole content once
+        a full cell has been covered, so a crowd stays concentrated as it moves.
+
+        Mass is conserved: exactly what leaves a source arrives at its neighbour, all
+        scaled by one factor where a receiver cannot take the whole flow. A receiver's
+        capacity is its headroom plus whatever it vacates this step, so the front of
+        a queue never blocks its own inflow - the defect that made the particle clone
+        accumulate people forever.
+        """
+        progress = carry + out_frac
+        whole = np.floor(progress)
+        carry = progress - whole
+
+        moving = (whole >= 1.0) & (flat_downhill >= 0) & (mass > 0.0)
+        if not moving.any():
+            return mass, carry
+
+        src = np.flatnonzero(moving)
+        tgt = flat_downhill[src]
+        amt = mass[src]
+        out_total = np.bincount(src, weights=amt, minlength=n_cells)
+        in_total = np.bincount(tgt, weights=amt, minlength=n_cells)
+        accept = headroom + out_total
+        with np.errstate(divide="ignore", invalid="ignore"):
+            scale = np.where(
+                in_total > 0,
+                np.minimum(1.0, accept / np.maximum(in_total, 1e-12)),
+                1.0,
+            )
+        amt = amt * scale[tgt]
+        carry[src] = np.where(scale[tgt] < 1.0, 1.0, carry[src])
+
+        return (
+            mass
+            - np.bincount(src, weights=amt, minlength=n_cells)
+            + np.bincount(tgt, weights=amt, minlength=n_cells)
+        ), carry
+
+    def _cell_speed(self, rho_blurred):
+        """Weidmann walking speed (m/s) for a density field."""
+        r = np.maximum(rho_blurred * self.congestion_scale, 1e-3)
+        inv = 1.0 / r - 1.0 / self.jam_density
+        factor = 1.0 - np.exp(-self.weidmann_gamma * inv)
+        return np.clip(factor, self.min_speed_factor, 1.0) * 1.3
+
+    def _snapshot_from_density(self, raw_density, time_offset):
+        """Build a PredictionSnapshot from a density grid."""
+        hazards = self.density_analyzer.detect_hazards(raw_density)
+        zones = self.density_analyzer.classify_zones(raw_density)
+        max_d = float(raw_density.max()) if raw_density.size else 0.0
+        critical_count = sum(
+            1 for h in hazards
+            if h.severity in (AlertSeverity.CRITICAL, AlertSeverity.EMERGENCY)
+        )
+        return PredictionSnapshot(
+            timestamp_offset_sec=round(time_offset, 1),
+            hazard_zones=hazards[:20],
+            zone_densities=zones[:50],
+            max_density=round(max_d, 2),
+            critical_zone_count=critical_count,
+        )
+
+    def _forecast_continuum(self, agents, grid, walls, gates, exits,
+                            sim_time_sec: float = 0.0):
+        """
+        Advect a density field to the exits. Mass-conserving, O(cells) per step.
+
+        State is people per 1 m2 cell - the same quantity the live analyzer reports,
+        so the two are directly comparable.
+        """
+        live = [a for a in agents if a.status != "arrived"]
+        if not live:
+            self.reset_forecast()
+            return []
+
+        h, w = self.height, self.width
+        free = ~self._build_wall_mask(grid)
+        _pot, downhill_exit = self._build_potential(free, exits, "exit")
+        concession_cells = self._concession_cells(grid)
+        if concession_cells and self.detour_fraction > 0:
+            _pc, downhill_conc = self._build_potential(
+                free, concession_cells, "concession"
+            )
+        else:
+            downhill_conc = None
+
+        n_cells = h * w
+        flat_exit = downhill_exit.ravel()
+        flat_conc = downhill_conc.ravel() if downhill_conc is not None else None
+
+        rho = np.zeros(n_cells, dtype=np.float64)
+        rho_conc = np.zeros(n_cells, dtype=np.float64)
+        holding = np.zeros(n_cells, dtype=np.float64)
+
+        cx = np.clip(np.array([a.pos.x for a in live]).astype(np.int32), 0, w - 1)
+        cy = np.clip(np.array([a.pos.y for a in live]).astype(np.int32), 0, h - 1)
+        np.add.at(rho, cy * w + cx, 1.0)
+
+        exit_cells = [int(e.y) * w + int(e.x) for e in exits
+                      if 0 <= int(e.y) < h and 0 <= int(e.x) < w]
+        exit_mask = np.zeros(n_cells, dtype=bool)
+        exit_mask[exit_cells] = True
+        gate_cells = [(int(g.y), int(g.x)) for g in gates
+                      if 0 <= int(g.y) < h and 0 <= int(g.x) < w]
+        conc_mask = np.zeros(n_cells, dtype=bool)
+        if concession_cells and flat_conc is not None:
+            conc_mask[[int(c.y) * w + int(c.x) for c in concession_cells]] = True
+
+        total_steps = int((self.horizon_minutes * 60) / self.sim_dt)
+        snapshot_every = max(1, int(self.snapshot_interval_sec / self.sim_dt))
+
+        snapshots = []
+        grids = []
+        backlog = 0.0
+        release_rate = min(1.0, self.sim_dt / max(self.dwell_sec, self.sim_dt))
+        carry_exit = np.zeros(n_cells, dtype=np.float64)
+        carry_conc = np.zeros(n_cells, dtype=np.float64)
+
+        for step in range(total_steps):
+            present = rho + rho_conc + holding
+
+            # Inject arrivals at the gates, splitting off detours.
+            if self.arrival_model is not None and gate_cells:
+                elapsed = (step + 1) * self.sim_dt
+                backlog += self.arrival_model.arrivals_in(
+                    sim_time_sec + elapsed, self.sim_dt
+                )
+                wanting = int(backlog)
+                admitted = 0
+                for k in range(wanting):
+                    gy, gx = gate_cells[k % len(gate_cells)]
+                    gi = gy * w + gx
+                    if present[gi] >= self.jam_density:
+                        continue   # gate jammed; this arrival waits outside
+                    if flat_conc is not None and self.rng.random() < self.detour_fraction:
+                        rho_conc[gi] += 1.0
+                    else:
+                        rho[gi] += 1.0
+                    present[gi] += 1.0
+                    admitted += 1
+                backlog -= admitted
+
+            headroom = np.maximum(self.jam_density - present, 0.0)
+            out_frac = np.clip(
+                self._cell_speed(_blur3(present.reshape(h, w))).ravel()
+                * self.sim_dt
+                * self.turnover_scale,
+                0.0,
+                1.0,
+            )
+            rho, carry_exit = self._advect(
+                rho, carry_exit, flat_exit, out_frac, n_cells, headroom
+            )
+            if flat_conc is not None:
+                rho_conc, carry_conc = self._advect(
+                    rho_conc, carry_conc, flat_conc, out_frac, n_cells, headroom
+                )
+                arrived = rho_conc[conc_mask]
+                if arrived.any():
+                    holding[conc_mask] += arrived
+                    rho_conc[conc_mask] = 0.0
+
+            if holding.any():
+                released = holding * release_rate
+                holding -= released
+                rho += released
+
+            rho[exit_mask] = 0.0
+            np.clip(rho, 0.0, self.jam_density, out=rho)
+            np.clip(rho_conc, 0.0, self.jam_density, out=rho_conc)
+
+            if (step + 1) % snapshot_every == 0:
+                time_offset = (step + 1) * self.sim_dt
+                field = (rho + rho_conc + holding).reshape(h, w).copy()
+                snapshots.append(self._snapshot_from_density(field, time_offset))
+                grids.append((time_offset, field))
+                if len(snapshots) >= self.max_snapshots:
+                    break
+
+        self._build_eta_maps(grids, sim_time_sec)
+        self.last_forecast_grids = grids
+        return snapshots
+
+    def _forecast_particles(
         self,
         agents: List[Agent],
         grid: List[List[str]],
@@ -187,6 +510,9 @@ class PredictionEngine:
                     break
 
         self._build_eta_maps(grids, sim_time_sec)
+        # Recorded so the accuracy harness can score either model through the
+        # same path; the continuum model does the same.
+        self.last_forecast_grids = grids
         return snapshots
 
     # ─────────────────────────────────────────────
@@ -196,6 +522,7 @@ class PredictionEngine:
     def reset_forecast(self):
         self.forecast_eta = None
         self.forecast_peak = None
+        self.last_forecast_grids = []
 
     def _build_eta_maps(self, grids, sim_time_sec: float):
         h, w = self.height, self.width

@@ -21,6 +21,8 @@ import json
 import os
 from typing import List, Optional
 
+from .rng import Rng
+
 _PROFILE_PATH = os.path.join(os.path.dirname(__file__), "data", "arrival_profiles.json")
 
 # Used when the profile file is missing so the simulation still runs. Flat curve.
@@ -47,6 +49,7 @@ class ArrivalModel:
         weekend: bool = False,
         scale: float = 1.0,
         profile_path: Optional[str] = None,
+        rng: Optional[Rng] = None,
     ):
         self.archetype = archetype
         self.attendance = attendance
@@ -54,6 +57,9 @@ class ArrivalModel:
         self.weekend = weekend
         self.scale = scale
 
+        # Arrival randomness lives on a derived substream so that later work
+        # (Poisson arrivals) does not shift the physics draws.
+        self.rng = rng or Rng()
         self.curve, self.meta = self._load_curve(profile_path or _PROFILE_PATH)
         # Fractional-arrival carry, so rates below 1/tick still spawn eventually.
         self._carry = 0.0

@@ -4,22 +4,24 @@ prediction forecasting, dynamic rerouting, and gate actuation.
 """
 
 import os
-import random
 import time
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from .models import (
     Point, Agent, CellType, SimulationState, FruinLoS,
     ZoneDensity, HazardZone, AlertEvent, GateState, GateAction,
     SignageState, PredictionSnapshot, RerouteRecommendation,
     AGENT_PROFILES, AlertSeverity
 )
-from .pathfinding import a_star_search, compute_alternative_routes
+from .pathfinding import (
+    a_star_search, compute_alternative_routes, build_flow_field, flow_path
+)
 from .physics import SocialForceModel
 from .density import DensityAnalyzer
 from .prediction import PredictionEngine
 from .ingress import ArrivalModel
 from .autopilot import Autopilot
+from .rng import Rng, seed_from_env
 
 
 # Simulated seconds advanced by one engine tick. The physics integrator runs at
@@ -40,9 +42,16 @@ DIVERT_DURATION_SEC = 120.0
 
 
 class SimulationEngine:
-    def __init__(self, width: int = 40, height: int = 30):
+    def __init__(self, width: int = 40, height: int = 30, seed: Optional[int] = None):
         self.width = width
         self.height = height
+        # One seed decides the whole run: arrivals, spawn jitter, demographic
+        # draws, gate selection and the physics separation all come from
+        # substreams derived from it. Without this two runs are incomparable and
+        # no accuracy claim about the forecast can be checked against anything.
+        self.rng = Rng(seed if seed is not None else seed_from_env())
+        self.seed = self.rng.seed
+
         self.grid = self._generate_default_grid()
         self.agents: List[Agent] = []
         self.real_agents: List[Dict] = []  # Added for Vision Pipeline
@@ -57,7 +66,7 @@ class SimulationEngine:
         
         # Physics engine. One tick covers TICK_DURATION_SEC of simulated time,
         # which takes several integrator substeps at dt=0.1s.
-        self.sfm = SocialForceModel(dt=0.1)
+        self.sfm = SocialForceModel(dt=0.1, rng=self.rng.derive("sfm"))
         self.physics_substeps = max(1, int(round(TICK_DURATION_SEC / self.sfm.dt)))
         self.walls_cache = self._get_walls()
         
@@ -69,7 +78,7 @@ class SimulationEngine:
         self.flow_vectors: List[Dict] = []
         
         # Prediction engine
-        self.prediction_engine = PredictionEngine(width, height)
+        self.prediction_engine = PredictionEngine(width, height, rng=self.rng.derive("predict"))
         self.predictions: List[PredictionSnapshot] = []
         self.prediction_interval = 10  # Run forecast every N ticks
         
@@ -119,6 +128,7 @@ class SimulationEngine:
             attendance=55_000,
             start_hour=17.0,   # matches the default slider values in index.html
             scale=2.0,
+            rng=self.rng.derive("ingress"),
         )
         self.auto_ingress = True
         self.prediction_engine.set_arrival_model(self.arrival_model, self.gates)
@@ -127,6 +137,10 @@ class SimulationEngine:
         # below one person per tick (e.g. a throttled 0.5/s gate) still admit.
         self._gate_credit: Dict[str, float] = {g.gate_id: 0.0 for g in self.gate_objects}
         self._last_reroute: Dict[int, int] = {}   # agent id -> tick of last reroute
+        # Flow field cache: (tick bucket, id(density array)) -> (dist, next_step).
+        # Rerouting asks one question per cell, not per agent, so the field is
+        # rebuilt a few times a second and shared by everyone. See build_flow_field.
+        self._flow_cache = None
         self._diverts: Dict[str, dict] = {}       # origin gate id -> {target, pct, until}
         self.forecast_warnings: List[dict] = []   # early pile-up warnings (see PredictionEngine.early_warnings)
         self._landmarks = None                    # cached (x, y, label) for named zones
@@ -212,7 +226,7 @@ class SimulationEngine:
         spawned = 0
         for _ in range(count):
             # Check gate throttling
-            g_idx = gate_idx if gate_idx is not None else random.randint(0, len(self.gates) - 1)
+            g_idx = gate_idx if gate_idx is not None else self.rng.randint(0, len(self.gates) - 1)
             gate_state = self.gate_objects[g_idx]
             
             if gate_state.action == GateAction.CLOSE:
@@ -221,18 +235,18 @@ class SimulationEngine:
             start = self.gates[g_idx]
             
             # Jitter to prevent stacking
-            jitter_x = random.uniform(0.1, 0.9)
-            jitter_y = random.uniform(-0.4, 0.4)
+            jitter_x = self.rng.uniform(0.1, 0.9)
+            jitter_y = self.rng.uniform(-0.4, 0.4)
             actual_start = Point(x=start.x + jitter_x, y=start.y + jitter_y)
             
             # Choose destination
-            if random.random() > 0.6:
-                goal = random.choice(self.concessions)
+            if self.rng.random() > 0.6:
+                goal = self.rng.choice(self.concessions)
             else:
-                goal = random.choice(self.exits)
+                goal = self.rng.choice(self.exits)
             
             # Choose demographic profile
-            profile_name = random.choices(profiles, weights=profile_weights, k=1)[0]
+            profile_name = self.rng.choices(profiles, weights=profile_weights, k=1)[0]
             profile = AGENT_PROFILES[profile_name]
                 
             agent = Agent(
@@ -240,7 +254,7 @@ class SimulationEngine:
                 pos=actual_start,
                 goal=goal,
                 path=[],
-                desired_speed=profile.desired_speed + random.uniform(-0.15, 0.15),
+                desired_speed=profile.desired_speed + self.rng.uniform(-0.15, 0.15),
                 radius=profile.radius,
                 mass=profile.mass,
                 profile=profile_name,
@@ -287,9 +301,9 @@ class SimulationEngine:
             )
         by_id = {g.gate_id: g for g in self.gate_objects}
         for _ in range(arrivals):
-            gate = self.gate_objects[random.randrange(n_gates)]
+            gate = self.gate_objects[self.rng.randrange(n_gates)]
             d = self._diverts.get(gate.gate_id)
-            if d and random.random() < d["pct"] / 100.0:
+            if d and self.rng.random() < d["pct"] / 100.0:
                 tgt = by_id.get(d["target"])
                 if tgt is not None and tgt.action != GateAction.CLOSE:
                     tgt.queue_length += 1
@@ -372,7 +386,7 @@ class SimulationEngine:
                 if 0 <= gy < self.height and 0 <= gx < self.width:
                     if self.grid[gy][gx] == CellType.CONCESSION.value:
                         # Visit concession then head to exit
-                        agent.goal = random.choice(self.exits)
+                        agent.goal = self.rng.choice(self.exits)
                         start_int = Point(x=float(int(agent.pos.x)), y=float(int(agent.pos.y)))
                         goal_int = Point(x=float(int(agent.goal.x)), y=float(int(agent.goal.y)))
                         agent.path = a_star_search(self.grid, start_int, goal_int)
@@ -436,6 +450,11 @@ class SimulationEngine:
     
     def _handle_rerouting(self, raw_density: np.ndarray):
         """Reroute agents whose paths intersect critical zones."""
+        # Rebuild at most every REROUTE_COOLDOWN_TICKS. Between rebuilds every
+        # agent reuses the same field, which is what removes the per-agent search.
+        if self._flow_cache is None or self.tick_count % REROUTE_COOLDOWN_TICKS == 0:
+            self._flow_cache = build_flow_field(self.grid, raw_density, self.exits)
+        flow_next_step = self._flow_cache[1]
         if not self.bottlenecks:
             self.suggested_routes.clear()
             self.active_reroutes.clear()
@@ -477,15 +496,12 @@ class SimulationEngine:
                 start_int = Point(x=float(int(agent.pos.x)), y=float(int(agent.pos.y)))
                 
                 # Use density-weighted pathfinding to find best alternative
-                alt_routes = compute_alternative_routes(
-                    self.grid, raw_density, start_int, self.exits
-                )
-                
-                if alt_routes:
-                    best_goal, best_path, best_cost = alt_routes[0]
-                    if best_path:
-                        agent.path = best_path[1:] if len(best_path) > 1 else best_path
-                        agent.goal = best_goal
+                # Read the precomputed field: one shared computation for the whole venue
+                # instead of up to four full A* searches per agent per tick.
+                best_path = flow_path(flow_next_step, start_int, max_len=20)
+                if best_path:
+                        agent.path = best_path
+                        agent.goal = best_path[-1]
                         self.suggested_routes[agent.id] = best_path
                         agent.color = "#f59e0b"  # Amber for rerouted
                         agent.rerouted = True
@@ -498,7 +514,7 @@ class SimulationEngine:
                                 reroute_id=f"reroute_{agent.id}",
                                 origin_zone=f"cell_{int(agent.pos.x)}_{int(agent.pos.y)}",
                                 congested_zone=f"bottleneck_zone",
-                                target_zone=f"cell_{int(best_goal.x)}_{int(best_goal.y)}",
+                                target_zone=f"cell_{int(agent.goal.x)}_{int(agent.goal.y)}",
                                 path_polyline=best_path[:10],
                             ))
             elif not agent.rerouted:

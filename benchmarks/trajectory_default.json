@@ -1,0 +1,38 @@
+{
+  "scenario": "default",
+  "seed": 1337,
+  "tick_duration_sec": 0.5,
+  "total_ticks": 2162,
+  "cuts_sec": [
+    60.0,
+    120.0,
+    180.0
+  ],
+  "cut_ticks": [
+    120,
+    240,
+    360
+  ],
+  "horizon_minutes": 15.0,
+  "width": 40,
+  "height": 30,
+  "arrival_model": {
+    "archetype": "gate",
+    "attendance": 30000,
+    "scale": 1.0,
+    "start_hour": 17.0,
+    "weekend": false
+  },
+  "prediction": {
+    "snapshot_interval_sec": 60,
+    "sim_dt": 0.5,
+    "max_snapshots": 15,
+    "jam_density": 5.0
+  },
+  "population": {
+    "min": 39,
+    "max": 118,
+    "final": 43
+  },
+  "wall_sec": 52.3
+}

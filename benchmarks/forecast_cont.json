@@ -1,0 +1,1445 @@
+{
+  "scenario": "default",
+  "model": "continuum",
+  "threshold": 2.17,
+  "notes": "Truth is the seeded live simulation, so this measures whether the forecast reproduces the Social Force Model - not real-world validity.",
+  "cuts": [
+    {
+      "cut_sec": 60.0,
+      "agents": 61,
+      "forecast_ms": 413.9,
+      "rows": [
+        {
+          "offset_sec": 60.0,
+          "model": {
+            "mae": 0.0725,
+            "busy_mae": 1.0,
+            "corr": 0.024882753875444644,
+            "pop_pred": 34.0,
+            "pop_truth": 57.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07833333333333334,
+            "busy_mae": 0.8035714285714286,
+            "corr": 0.15420306934015637,
+            "pop_pred": 61.0,
+            "pop_truth": 57.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 120.0,
+          "model": {
+            "mae": 0.065,
+            "busy_mae": 1.0204081632653061,
+            "corr": 0.060879928246562506,
+            "pop_pred": 33.0,
+            "pop_truth": 51.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07666666666666666,
+            "busy_mae": 0.8367346938775511,
+            "corr": 0.12953247930118042,
+            "pop_pred": 61.0,
+            "pop_truth": 51.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 180.0,
+          "model": {
+            "mae": 0.07166666666666667,
+            "busy_mae": 1.0,
+            "corr": 0.050784521352993134,
+            "pop_pred": 32.0,
+            "pop_truth": 60.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.08416666666666667,
+            "busy_mae": 0.8771929824561403,
+            "corr": 0.12730763573089873,
+            "pop_pred": 61.0,
+            "pop_truth": 60.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 240.0,
+          "model": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 1.0444444444444445,
+            "corr": 0.03420961644734444,
+            "pop_pred": 30.0,
+            "pop_truth": 46.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0725,
+            "busy_mae": 0.8,
+            "corr": 0.14321469872774148,
+            "pop_pred": 61.0,
+            "pop_truth": 46.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 300.0,
+          "model": {
+            "mae": 0.065,
+            "busy_mae": 1.037037037037037,
+            "corr": 0.06256072450384141,
+            "pop_pred": 27.0,
+            "pop_truth": 55.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.08333333333333333,
+            "busy_mae": 0.8888888888888888,
+            "corr": 0.10683801907376643,
+            "pop_pred": 61.0,
+            "pop_truth": 55.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 360.0,
+          "model": {
+            "mae": 0.0575,
+            "busy_mae": 1.0,
+            "corr": 0.14734518313170003,
+            "pop_pred": 29.0,
+            "pop_truth": 50.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 6,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0725,
+            "busy_mae": 0.76,
+            "corr": 0.17367164385319583,
+            "pop_pred": 61.0,
+            "pop_truth": 50.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 420.0,
+          "model": {
+            "mae": 0.06416666666666666,
+            "busy_mae": 1.0833333333333333,
+            "corr": 0.07121310217372781,
+            "pop_pred": 31.0,
+            "pop_truth": 50.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07416666666666667,
+            "busy_mae": 0.8333333333333334,
+            "corr": 0.16684715821924048,
+            "pop_pred": 61.0,
+            "pop_truth": 50.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 480.0,
+          "model": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 1.0204081632653061,
+            "corr": 0.03561600484825589,
+            "pop_pred": 27.0,
+            "pop_truth": 49.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07,
+            "busy_mae": 0.7346938775510204,
+            "corr": 0.19484120181237052,
+            "pop_pred": 61.0,
+            "pop_truth": 49.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 540.0,
+          "model": {
+            "mae": 0.065,
+            "busy_mae": 1.0961538461538463,
+            "corr": 0.12374019894565368,
+            "pop_pred": 31.0,
+            "pop_truth": 55.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07666666666666666,
+            "busy_mae": 0.8269230769230769,
+            "corr": 0.1862243948827218,
+            "pop_pred": 61.0,
+            "pop_truth": 55.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 600.0,
+          "model": {
+            "mae": 0.060833333333333336,
+            "busy_mae": 1.0888888888888888,
+            "corr": 0.08714084832388568,
+            "pop_pred": 31.0,
+            "pop_truth": 46.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07083333333333333,
+            "busy_mae": 0.7777777777777778,
+            "corr": 0.1619070674979492,
+            "pop_pred": 61.0,
+            "pop_truth": 46.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 660.0,
+          "model": {
+            "mae": 0.06,
+            "busy_mae": 1.0,
+            "corr": 0.03165814245427337,
+            "pop_pred": 28.0,
+            "pop_truth": 48.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07916666666666666,
+            "busy_mae": 0.8723404255319149,
+            "corr": 0.08358728363419643,
+            "pop_pred": 61.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 720.0,
+          "model": {
+            "mae": 0.059166666666666666,
+            "busy_mae": 0.96,
+            "corr": 0.020306923302672388,
+            "pop_pred": 25.0,
+            "pop_truth": 50.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07916666666666666,
+            "busy_mae": 0.86,
+            "corr": 0.11858636474557424,
+            "pop_pred": 61.0,
+            "pop_truth": 50.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 780.0,
+          "model": {
+            "mae": 0.060833333333333336,
+            "busy_mae": 1.0,
+            "corr": 0.03210908213829524,
+            "pop_pred": 29.0,
+            "pop_truth": 48.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.08583333333333333,
+            "busy_mae": 0.9574468085106383,
+            "corr": 0.010265105007708338,
+            "pop_pred": 61.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 840.0,
+          "model": {
+            "mae": 0.058333333333333334,
+            "busy_mae": 1.0217391304347827,
+            "corr": 0.041088537159418737,
+            "pop_pred": 26.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0775,
+            "busy_mae": 0.8695652173913043,
+            "corr": 0.11782278340498498,
+            "pop_pred": 61.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 900.0,
+          "model": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 1.0208333333333333,
+            "corr": 0.016778826200804647,
+            "pop_pred": 27.0,
+            "pop_truth": 49.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07833333333333334,
+            "busy_mae": 0.8541666666666666,
+            "corr": 0.10003435194462414,
+            "pop_pred": 61.0,
+            "pop_truth": 49.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        }
+      ],
+      "lead": {
+        "mean_sec": null,
+        "matched_cells": 0,
+        "missed_cells": 0,
+        "truth_breach_cells": 0,
+        "false_alarm_cells": 26
+      }
+    },
+    {
+      "cut_sec": 120.0,
+      "agents": 57,
+      "forecast_ms": 396.5,
+      "rows": [
+        {
+          "offset_sec": 60.0,
+          "model": {
+            "mae": 0.060833333333333336,
+            "busy_mae": 0.9387755102040817,
+            "corr": 0.10913725141918691,
+            "pop_pred": 34.0,
+            "pop_truth": 51.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 0.6938775510204082,
+            "corr": 0.2856418984367437,
+            "pop_pred": 57.0,
+            "pop_truth": 51.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 120.0,
+          "model": {
+            "mae": 0.07333333333333333,
+            "busy_mae": 1.0175438596491229,
+            "corr": 0.006786253571934901,
+            "pop_pred": 32.0,
+            "pop_truth": 60.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07583333333333334,
+            "busy_mae": 0.8421052631578947,
+            "corr": 0.20402375433768993,
+            "pop_pred": 57.0,
+            "pop_truth": 60.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 180.0,
+          "model": {
+            "mae": 0.06583333333333333,
+            "busy_mae": 1.0222222222222221,
+            "corr": -0.02191049675257556,
+            "pop_pred": 33.0,
+            "pop_truth": 46.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07583333333333334,
+            "busy_mae": 0.8888888888888888,
+            "corr": 0.07477837366038398,
+            "pop_pred": 57.0,
+            "pop_truth": 46.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 240.0,
+          "model": {
+            "mae": 0.06833333333333333,
+            "busy_mae": 1.0,
+            "corr": -0.005477048501890746,
+            "pop_pred": 29.0,
+            "pop_truth": 55.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07166666666666667,
+            "busy_mae": 0.7777777777777778,
+            "corr": 0.1875730933586797,
+            "pop_pred": 57.0,
+            "pop_truth": 55.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 300.0,
+          "model": {
+            "mae": 0.060833333333333336,
+            "busy_mae": 1.1,
+            "corr": 0.1559249460225261,
+            "pop_pred": 29.0,
+            "pop_truth": 50.0,
+            "peak_error": 4.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06583333333333333,
+            "busy_mae": 0.72,
+            "corr": 0.22383314351823919,
+            "pop_pred": 57.0,
+            "pop_truth": 50.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 360.0,
+          "model": {
+            "mae": 0.0625,
+            "busy_mae": 1.0416666666666667,
+            "corr": 0.015133417355773055,
+            "pop_pred": 27.0,
+            "pop_truth": 50.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06916666666666667,
+            "busy_mae": 0.8125,
+            "corr": 0.19653969156663384,
+            "pop_pred": 57.0,
+            "pop_truth": 50.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 420.0,
+          "model": {
+            "mae": 0.0625,
+            "busy_mae": 1.0,
+            "corr": 0.04864161878854484,
+            "pop_pred": 30.0,
+            "pop_truth": 49.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07333333333333333,
+            "busy_mae": 0.8163265306122449,
+            "corr": 0.1297233738840738,
+            "pop_pred": 57.0,
+            "pop_truth": 49.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 480.0,
+          "model": {
+            "mae": 0.065,
+            "busy_mae": 1.0576923076923077,
+            "corr": 0.06902639833037201,
+            "pop_pred": 29.0,
+            "pop_truth": 55.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.075,
+            "busy_mae": 0.8461538461538461,
+            "corr": 0.16361536824253378,
+            "pop_pred": 57.0,
+            "pop_truth": 55.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 540.0,
+          "model": {
+            "mae": 0.06,
+            "busy_mae": 1.0222222222222221,
+            "corr": 0.05445119610662574,
+            "pop_pred": 30.0,
+            "pop_truth": 46.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07583333333333334,
+            "busy_mae": 0.8888888888888888,
+            "corr": 0.07477837366038399,
+            "pop_pred": 57.0,
+            "pop_truth": 46.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 600.0,
+          "model": {
+            "mae": 0.06333333333333334,
+            "busy_mae": 1.0851063829787233,
+            "corr": 0.05500929884315698,
+            "pop_pred": 30.0,
+            "pop_truth": 48.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0725,
+            "busy_mae": 0.8297872340425532,
+            "corr": 0.1291700344217372,
+            "pop_pred": 57.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 660.0,
+          "model": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 0.98,
+            "corr": -0.0017859620367906845,
+            "pop_pred": 26.0,
+            "pop_truth": 50.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06583333333333333,
+            "busy_mae": 0.72,
+            "corr": 0.22383314351823916,
+            "pop_pred": 57.0,
+            "pop_truth": 50.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 720.0,
+          "model": {
+            "mae": 0.059166666666666666,
+            "busy_mae": 1.0212765957446808,
+            "corr": 0.05817897437859406,
+            "pop_pred": 27.0,
+            "pop_truth": 48.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07416666666666667,
+            "busy_mae": 0.8723404255319149,
+            "corr": 0.12917003442173713,
+            "pop_pred": 57.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 780.0,
+          "model": {
+            "mae": 0.058333333333333334,
+            "busy_mae": 1.0,
+            "corr": 0.09816547017963478,
+            "pop_pred": 28.0,
+            "pop_truth": 48.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07416666666666667,
+            "busy_mae": 0.8695652173913043,
+            "corr": 0.12656448162287368,
+            "pop_pred": 57.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 840.0,
+          "model": {
+            "mae": 0.056666666666666664,
+            "busy_mae": 0.9791666666666666,
+            "corr": 0.07046573702688858,
+            "pop_pred": 25.0,
+            "pop_truth": 49.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07166666666666667,
+            "busy_mae": 0.8125,
+            "corr": 0.14608892114277178,
+            "pop_pred": 57.0,
+            "pop_truth": 49.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 900.0,
+          "model": {
+            "mae": 0.055,
+            "busy_mae": 0.9574468085106383,
+            "corr": 0.0706542065575539,
+            "pop_pred": 25.0,
+            "pop_truth": 47.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07333333333333333,
+            "busy_mae": 0.8297872340425532,
+            "corr": 0.11439034645728967,
+            "pop_pred": 57.0,
+            "pop_truth": 47.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        }
+      ],
+      "lead": {
+        "mean_sec": null,
+        "matched_cells": 0,
+        "missed_cells": 0,
+        "truth_breach_cells": 0,
+        "false_alarm_cells": 22
+      }
+    },
+    {
+      "cut_sec": 180.0,
+      "agents": 51,
+      "forecast_ms": 404.7,
+      "rows": [
+        {
+          "offset_sec": 60.0,
+          "model": {
+            "mae": 0.07833333333333334,
+            "busy_mae": 1.0526315789473684,
+            "corr": -0.02741468390001239,
+            "pop_pred": 34.0,
+            "pop_truth": 60.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06416666666666666,
+            "busy_mae": 0.7719298245614035,
+            "corr": 0.31979783177805093,
+            "pop_pred": 51.0,
+            "pop_truth": 60.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 120.0,
+          "model": {
+            "mae": 0.06,
+            "busy_mae": 0.9777777777777777,
+            "corr": 0.0521581788932677,
+            "pop_pred": 32.0,
+            "pop_truth": 46.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06583333333333333,
+            "busy_mae": 0.8222222222222222,
+            "corr": 0.14254013247366246,
+            "pop_pred": 51.0,
+            "pop_truth": 46.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 180.0,
+          "model": {
+            "mae": 0.07333333333333333,
+            "busy_mae": 1.0185185185185186,
+            "corr": -0.023188651426843822,
+            "pop_pred": 33.0,
+            "pop_truth": 55.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07,
+            "busy_mae": 0.8333333333333334,
+            "corr": 0.18010414092321406,
+            "pop_pred": 51.0,
+            "pop_truth": 55.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 240.0,
+          "model": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 1.0,
+            "corr": 0.07263504299043863,
+            "pop_pred": 30.0,
+            "pop_truth": 50.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0675,
+            "busy_mae": 0.82,
+            "corr": 0.17639021173664943,
+            "pop_pred": 51.0,
+            "pop_truth": 50.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 300.0,
+          "model": {
+            "mae": 0.06333333333333334,
+            "busy_mae": 1.0416666666666667,
+            "corr": 0.01315056925083325,
+            "pop_pred": 28.0,
+            "pop_truth": 50.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0575,
+            "busy_mae": 0.75,
+            "corr": 0.32221058272680286,
+            "pop_pred": 51.0,
+            "pop_truth": 50.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 360.0,
+          "model": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 0.9795918367346939,
+            "corr": -0.001590270775584379,
+            "pop_pred": 27.0,
+            "pop_truth": 49.0,
+            "peak_error": 4.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06,
+            "busy_mae": 0.7142857142857143,
+            "corr": 0.23916052656177844,
+            "pop_pred": 51.0,
+            "pop_truth": 49.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 420.0,
+          "model": {
+            "mae": 0.06166666666666667,
+            "busy_mae": 1.0,
+            "corr": 0.13788539134008906,
+            "pop_pred": 31.0,
+            "pop_truth": 55.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.07333333333333333,
+            "busy_mae": 0.8846153846153846,
+            "corr": 0.15584471501829528,
+            "pop_pred": 51.0,
+            "pop_truth": 55.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 480.0,
+          "model": {
+            "mae": 0.0625,
+            "busy_mae": 0.9777777777777777,
+            "corr": 0.010697866185025254,
+            "pop_pred": 33.0,
+            "pop_truth": 46.0,
+            "peak_error": 3.0,
+            "tp": 0,
+            "fp": 5,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06583333333333333,
+            "busy_mae": 0.8222222222222222,
+            "corr": 0.14254013247366246,
+            "pop_pred": 51.0,
+            "pop_truth": 46.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 540.0,
+          "model": {
+            "mae": 0.06,
+            "busy_mae": 1.0212765957446808,
+            "corr": 0.05302916311672894,
+            "pop_pred": 28.0,
+            "pop_truth": 48.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 4,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.059166666666666666,
+            "busy_mae": 0.723404255319149,
+            "corr": 0.2571415107815492,
+            "pop_pred": 51.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 600.0,
+          "model": {
+            "mae": 0.0625,
+            "busy_mae": 1.0,
+            "corr": -0.021612643740700807,
+            "pop_pred": 25.0,
+            "pop_truth": 50.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 2,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06583333333333333,
+            "busy_mae": 0.78,
+            "corr": 0.1763902117366494,
+            "pop_pred": 51.0,
+            "pop_truth": 50.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 660.0,
+          "model": {
+            "mae": 0.060833333333333336,
+            "busy_mae": 1.0212765957446808,
+            "corr": -0.021624170127858954,
+            "pop_pred": 25.0,
+            "pop_truth": 48.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0725,
+            "busy_mae": 0.8936170212765957,
+            "corr": 0.07857101718325116,
+            "pop_pred": 51.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 720.0,
+          "model": {
+            "mae": 0.058333333333333334,
+            "busy_mae": 1.0217391304347827,
+            "corr": 0.06205207652646908,
+            "pop_pred": 26.0,
+            "pop_truth": 48.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.0575,
+            "busy_mae": 0.717391304347826,
+            "corr": 0.29083646181436734,
+            "pop_pred": 51.0,
+            "pop_truth": 48.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 780.0,
+          "model": {
+            "mae": 0.058333333333333334,
+            "busy_mae": 1.0416666666666667,
+            "corr": 0.08721873604232822,
+            "pop_pred": 25.0,
+            "pop_truth": 49.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.065,
+            "busy_mae": 0.8125,
+            "corr": 0.1949203943244264,
+            "pop_pred": 51.0,
+            "pop_truth": 49.0,
+            "peak_error": 0.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 840.0,
+          "model": {
+            "mae": 0.059166666666666666,
+            "busy_mae": 0.9787234042553191,
+            "corr": -0.00037320615316895284,
+            "pop_pred": 26.0,
+            "pop_truth": 47.0,
+            "peak_error": 2.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06,
+            "busy_mae": 0.723404255319149,
+            "corr": 0.22525157523917028,
+            "pop_pred": 51.0,
+            "pop_truth": 47.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        },
+        {
+          "offset_sec": 900.0,
+          "model": {
+            "mae": 0.05,
+            "busy_mae": 0.9534883720930233,
+            "corr": 0.08390073929278559,
+            "pop_pred": 23.0,
+            "pop_truth": 43.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.06666666666666667,
+            "busy_mae": 0.8604651162790697,
+            "corr": 0.1318864667140812,
+            "pop_pred": 51.0,
+            "pop_truth": 43.0,
+            "peak_error": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        }
+      ],
+      "lead": {
+        "mean_sec": null,
+        "matched_cells": 0,
+        "missed_cells": 0,
+        "truth_breach_cells": 0,
+        "false_alarm_cells": 23
+      }
+    }
+  ]
+}
