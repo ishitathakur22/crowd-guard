@@ -1,0 +1,40 @@
+{
+  "scenario": "default",
+  "seed": 1337,
+  "tick_duration_sec": 0.5,
+  "total_ticks": 602,
+  "total_sim_sec": 301.0,
+  "cuts_sec": [
+    240.0
+  ],
+  "cut_ticks": [
+    480
+  ],
+  "horizon_minutes": 1.0,
+  "prefill": 100,
+  "width": 40,
+  "height": 30,
+  "arrival_model": {
+    "archetype": "gate",
+    "attendance": 30000,
+    "scale": 1.0,
+    "start_hour": 17.0,
+    "weekend": false
+  },
+  "prediction": {
+    "horizon_minutes": 1.0,
+    "snapshot_interval_sec": 60,
+    "sim_dt": 0.5,
+    "max_snapshots": 1,
+    "cell_capacity": 5.0,
+    "pressure_strength": 1.5,
+    "max_pressure": 1.2
+  },
+  "population": {
+    "min": 100,
+    "max": 141,
+    "final": 133
+  },
+  "wall_sec": 66.8,
+  "python": "3.12.10"
+}

@@ -1,4 +1,8 @@
-# Python bytecode / caches
+# ==============================================================================
+# Crowd Guard .gitignore
+# ==============================================================================
+
+# --- Python Bytecode & Caches -------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
@@ -8,7 +12,7 @@ __pycache__/
 .ruff_cache/
 .pytype/
 
-# Virtual environments
+# --- Virtual Environments & Env Files -----------------------------------------
 .venv/
 .venv*/
 venv/
@@ -17,7 +21,7 @@ ENV/
 .env
 .env.*
 
-# Build / packaging
+# --- Build & Packaging --------------------------------------------------------
 build/
 dist/
 *.egg-info/
@@ -25,36 +29,7 @@ dist/
 *.egg
 pip-wheel-metadata/
 
-# IDE / editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*.sublime-project
-*.sublime-workspace
-
-# OS files
-Thumbs.db
-.DS_Store
-Desktop.ini
-
-# Logs / temp files
-*.log
-*.tmp
-*.temp
-
-# Jupyter / notebooks
-.ipynb_checkpoints/
-
-# Local data / generated output
-*.sqlite3
-*.db
-autopilot_log.jsonl
-*.jsonl
-coverage.xml
-.htmlcov/
-
-# AI / model weights and large binaries
+# --- AI / Model Weights & Large Binaries --------------------------------------
 weights/
 *.pt
 *.pth
@@ -64,6 +39,33 @@ weights/
 *.ggml
 *.safetensors
 
-# Local runtime artifacts
+# --- Local Data, Coverage & Generated Output ----------------------------------
+*.sqlite3
+*.db
+autopilot_log.jsonl
+*.jsonl
+coverage.xml
+.htmlcov/
+
+# --- Local Runtime Artifacts, Logs & Temp Files -------------------------------
 backend/.cache/
 frontend/.cache/
+*.log
+*.tmp
+*.temp
+
+# --- Jupyter Notebooks --------------------------------------------------------
+.ipynb_checkpoints/
+
+# --- IDE / Editor -------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# --- OS Files -----------------------------------------------------------------
+Thumbs.db
+.DS_Store
+Desktop.ini

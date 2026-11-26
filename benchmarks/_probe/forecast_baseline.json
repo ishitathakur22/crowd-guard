@@ -1,0 +1,53 @@
+{
+  "scenario": "default",
+  "seed": 1337,
+  "threshold": 2.17,
+  "notes": "Truth is the seeded live simulation, so this measures whether the forecast clone reproduces the Social Force Model - not real-world predictive validity.",
+  "cuts": [
+    {
+      "cut_sec": 240.0,
+      "agents": 122,
+      "forecast_ms": 59.6,
+      "snapshots": 1,
+      "rows": [
+        {
+          "offset_sec": 60.0,
+          "model": {
+            "mae": 0.14916666666666667,
+            "rmse": 0.42524502740576914,
+            "peak_error": 2.0,
+            "peak_pred": 3.0,
+            "peak_truth": 1.0,
+            "tp": 0,
+            "fp": 3,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": NaN,
+            "f1": NaN
+          },
+          "persistence": {
+            "mae": 0.12916666666666668,
+            "rmse": 0.35939764421413045,
+            "peak_error": 0.0,
+            "peak_pred": 1.0,
+            "peak_truth": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": NaN,
+            "f1": NaN
+          }
+        }
+      ],
+      "lead": {
+        "mean_sec": null,
+        "median_sec": null,
+        "matched_cells": 0,
+        "missed_cells": 0,
+        "false_alarm_cells": 3,
+        "truth_breach_cells": 0
+      }
+    }
+  ]
+}
