@@ -124,6 +124,7 @@ class PredictionEngine:
         self.congestion_scale = 1.0
         # Effective turnover, a multiplier on how fast density advances each step.
         self.turnover_scale = 1.0
+
         # Share of arrivals detouring via a concession. Off by default: measured
         # and found to cost peak-density accuracy, so the machinery is retained but
         # disabled.
@@ -459,6 +460,10 @@ class PredictionEngine:
                 holding -= released
                 rho += released
 
+            # Exits absorb at once. A finite-throughput version was measured and
+            # reverted: see benchmarks/README.md section 3d. It changed hotspot
+            # busy-MAE from 1.526 to 1.525 - noise - so exit capacity is not the
+            # source of the over-drain and the simpler behaviour is kept.
             rho[exit_mask] = 0.0
             np.clip(rho, 0.0, self.jam_density, out=rho)
             np.clip(rho_conc, 0.0, self.jam_density, out=rho_conc)

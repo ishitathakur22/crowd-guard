@@ -18,6 +18,7 @@ Run with pytest, or directly: `python tests/test_snapshot_and_clock.py`
 
 import math
 import pathlib
+import statistics
 import sys
 import threading
 import time
@@ -26,6 +27,7 @@ _ROOT = str(pathlib.Path(__file__).resolve().parents[1])
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+from backend.density import local_density  # noqa: E402
 from backend.simulation import SimulationEngine, TICK_DURATION_SEC  # noqa: E402
 
 
@@ -120,6 +122,111 @@ def test_concurrent_reads_during_ticks_are_safe():
             t.join(timeout=5)
 
     assert not errors, f"reader raised during concurrent ticks: {errors[0]!r}"
+
+
+# ── fundamental diagram ───────────────────────────────────────────
+
+
+def test_fundamental_diagram_slows_with_density():
+    """
+    Does the simulated crowd slow with density the way real people do?
+
+    This is the only check in the file that compares the simulation to measurements of
+    humans rather than to itself. Weidmann (1993) is a closed-form fit to empirical
+    pedestrian data and the reference used throughout the pedestrian-simulation
+    literature.
+
+    The discriminator is the *slope*, not the intercept. A model can get the free
+    walking speed right - `B=0.10` was fitted to exactly that one number - while being
+    completely insensitive to crowding, which is what a wrong floor plan looks like.
+    """
+    print("\n  fundamental diagram vs Weidmann (1993)")
+
+    from backend.models import Agent, CellType, Point
+    from backend.simulation import SimulationEngine
+
+    v_free, gamma, rho_jam = 1.34, 1.913, 5.4
+
+    def weidmann(rho):
+        rho = max(rho, 1e-6)
+        return v_free * (1.0 - math.exp(-gamma * (1.0 / rho - 1.0 / rho_jam)))
+
+    def sample(n):
+        e = SimulationEngine(seed=1337)
+        e.auto_ingress = False
+        e.prediction_interval = 10**9
+        e.grid = [[CellType.EMPTY.value for _ in range(e.width)]
+                  for _ in range(e.height)]
+        e.walls_cache = []
+        e.sfm._wall_set_initialized = False
+        e.sfm._wall_set = set()
+
+        rng = e.rng
+        for _ in range(n):
+            x = rng.uniform(1.0, 6.0)
+            y = rng.uniform(1.0, e.height - 1.0)
+            e.agents.append(Agent(
+                id=e.agent_id_counter, pos=Point(x=x, y=y),
+                goal=Point(x=e.width - 2.0, y=y), path=[],
+                desired_speed=v_free, radius=0.3, mass=80.0,
+            ))
+            e.agent_id_counter += 1
+
+        speeds, dens = [], []
+        for tick in range(60):
+            e.update()
+            # Agents cross 40 m in ~57 ticks, so the window must sit inside the
+            # crossing; a longer warmup leaves an empty venue.
+            if tick < 20 or not e.agents:
+                continue
+            speeds.append(statistics.fmean(
+                (a.vel.x ** 2 + a.vel.y ** 2) ** 0.5 for a in e.agents))
+            raw = e.density_analyzer.compute_raw_density(e.agents)
+            ld = local_density(raw, 1)
+            occ = raw > 0
+            if occ.any():
+                dens.append(float(ld[occ].mean()))
+        if not speeds or not dens:
+            return None
+        return statistics.fmean(dens), statistics.fmean(speeds)
+
+    rows = []
+    for n in (60, 200, 450, 800):
+        got = sample(n)
+        if got:
+            rows.append((n, got[0], got[1]))
+
+    print("  spawn | density | simulated | Weidmann | error")
+    for n, rho, v in rows:
+        print(f"  {n:>5} | {rho:>7.3f} | {v:>9.3f} | {weidmann(rho):>8.3f} "
+              f"| {v - weidmann(rho):+.3f}")
+
+    if len(rows) < 3:
+        print("  not enough measurements")
+        return
+
+    errors = [v - weidmann(rho) for _n, rho, v in rows]
+    rmse = (sum(e * e for e in errors) / len(errors)) ** 0.5
+    bias = sum(errors) / len(errors)
+    sim_speed = [v for _n, _rho, v in rows]
+    real_speed = [weidmann(rho) for _n, rho, _v in rows]
+
+    sim_drop = sim_speed[0] - sim_speed[-1]
+    real_drop = real_speed[0] - real_speed[-1]
+
+    print(f"\n  RMSE {rmse:.3f} m/s, bias {bias:+.3f} m/s")
+    print(f"  speed drop over the density range: simulation {sim_drop:.3f} m/s, "
+          f"real {real_drop:.3f} m/s")
+
+    # The failure mode to catch: a crowd that walks at full speed regardless of
+    # crowding. Real pedestrians lose ~0.4 m/s across this range.
+    assert real_drop > 0.3, "reference curve is not behaving as expected"
+    assert sim_drop > 0.25 * real_drop, (
+        f"the simulated crowd barely slows with density ({sim_drop:.3f} m/s lost "
+        f"against {real_drop:.3f} for real people). It walks at a near-constant "
+        f"speed, so it cannot reproduce queueing or crush behaviour."
+    )
+    print("  -> density sensitivity is present")
 
 
 def test_heatmap_matches_the_published_state():

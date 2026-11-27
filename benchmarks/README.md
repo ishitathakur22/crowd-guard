@@ -303,6 +303,42 @@ Re-run the check with:
 
 ---
 
+## 3d. Tested and reverted: finite exit capacity
+
+**Hypothesis.** The continuum model conserved mass but not *throughput*. It did
+`rho[exit_mask] = 0.0`, removing everyone who reached an exit however many arrived at
+once. A door is not infinitely wide - SFPE/Fruin gives about 1.3 people/s through a
+1 m opening - so the forecast would drain a crowded venue faster than reality. That
+would explain the measured population deficit of 476-826 people at the hotspot.
+
+**Test.** Added `exit_capacity_per_sec = 1.3`, so surplus queued at the threshold
+instead of vanishing, and re-ran the hotspot evaluation.
+
+| metric | before | with exit capacity | persistence |
+|---|---|---|---|
+| busy MAE | 1.526 | **1.525** | 0.963 |
+| MAE | 0.653 | 0.661 | 0.496 |
+| population error | -826 | -817 | — |
+| lead time (60 s cut) | 110.0 s | 96.0 s | — |
+
+**Result: no meaningful change.** Busy-MAE moved by 0.001, which is noise; the
+population deficit barely shifted. Exit capacity is therefore **not** the source of
+the over-drain.
+
+**Reverted**, per the stopping rule agreed before the experiment. The instant-absorb
+behaviour is restored and the hotspot numbers reproduce the pre-experiment baseline
+exactly (MAE 0.653, busy MAE 1.526, lead 110 s), which confirms the revert is clean.
+
+This was the **sixth** attempt at the location gap. The pattern is consistent: every
+change to the forecast's flow representation has failed to move `busy_mae` toward the
+persistence baseline of 0.963. That is strong evidence the error is not in the
+forecast's flow model at all, but in the reference it is scored against — which only
+annotated real-world trajectories can settle.
+
+**Do not attempt a seventh parameter change without new data.**
+
+---
+
 ## 4. Correctness fixes, with evidence
 
 | Defect | Symptom | Fix |
