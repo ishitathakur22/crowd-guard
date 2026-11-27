@@ -1,0 +1,45 @@
+{
+  "scenario": "hotspot",
+  "seed": 1337,
+  "tick_duration_sec": 0.5,
+  "total_ticks": 1680,
+  "cuts_sec": [
+    60.0,
+    120.0,
+    180.0
+  ],
+  "cut_ticks": [
+    120,
+    240,
+    360
+  ],
+  "horizon_minutes": 10.0,
+  "width": 40,
+  "height": 30,
+  "tightened": true,
+  "arrival_model": {
+    "archetype": "gate",
+    "attendance": 90000,
+    "scale": 1.0,
+    "start_hour": 17.0,
+    "weekend": false
+  },
+  "prediction": {
+    "snapshot_interval_sec": 60,
+    "sim_dt": 0.5,
+    "max_snapshots": 15,
+    "jam_density": 5.0
+  },
+  "population": {
+    "min": 401,
+    "max": 956,
+    "final": 955
+  },
+  "pileup": {
+    "threshold": 2.17,
+    "peak_local_density": 8.667,
+    "ticks_at_or_above_threshold": 1612,
+    "fraction_of_run": 0.96
+  },
+  "wall_sec": 212.6
+}

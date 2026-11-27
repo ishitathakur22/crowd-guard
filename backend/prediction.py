@@ -135,6 +135,21 @@ class PredictionEngine:
         # forecast cell by cell against recorded ground truth.
         self.last_forecast_grids = []
 
+        # Uncertainty is reported instead of being hidden. Each replicate re-runs the
+        # horizon with a fresh arrival draw, because arrivals are now Poisson and the
+        # run-to-run spread is the dominant unknown. A single forecast is one sample;
+        # what an operator actually needs is "how likely is this to go wrong", so
+        # `exceedance` gives the per-cell probability of crossing the pile-up
+        # threshold within the horizon.
+        #
+        # 0 disables the replicates (`forecast()` then behaves exactly as before);
+        # the live engine sets this from its own configuration.
+        self.ensemble_replicates = 0
+        #: Per-cell probability in [0, 1] of reaching PILEUP_DENSITY within the horizon.
+        self.exceedance = None
+        #: Per-cell std-dev of density at the final snapshot, in people/m2.
+        self.final_sigma = None
+
         # Ingress. Set by the simulation engine; None disables arrival injection.
         self.arrival_model = None
         self.gate_positions: List[Point] = []
@@ -183,6 +198,8 @@ class PredictionEngine:
         sim_time_sec: float = 0.0,
     ) -> List[PredictionSnapshot]:
         """Run the configured forward model. See `spatial_model`."""
+        if self.ensemble_replicates and self.ensemble_replicates > 1:
+            return self._forecast_ensemble(agents, grid, walls, gates, exits, sim_time_sec)
         if self.spatial_model == "particles":
             return self._forecast_particles(agents, grid, walls, gates, exits, sim_time_sec)
         return self._forecast_continuum(agents, grid, walls, gates, exits, sim_time_sec)
@@ -392,9 +409,16 @@ class PredictionEngine:
             # Inject arrivals at the gates, splitting off detours.
             if self.arrival_model is not None and gate_cells:
                 elapsed = (step + 1) * self.sim_dt
-                backlog += self.arrival_model.arrivals_in(
+                # Drawn, not expected. Using `arrivals_in` here made the forecast a
+                # deterministic function of the current state, so every ensemble
+                # replicate returned an identical answer and the exceedance map
+                # collapsed to 0 or 1 with a sigma of exactly zero. Drawing from the
+                # same Poisson process the live engine uses is both more correct and
+                # what gives `ensemble_replicates` something to measure.
+                expected = self.arrival_model.arrivals_in(
                     sim_time_sec + elapsed, self.sim_dt
                 )
+                backlog += float(self.rng.gen.poisson(expected)) if expected > 0 else 0.0
                 wanting = int(backlog)
                 admitted = 0
                 for k in range(wanting):
@@ -451,6 +475,70 @@ class PredictionEngine:
         self.last_forecast_grids = grids
         return snapshots
 
+    def _run_once(self, agents, grid, walls, gates, exits, sim_time_sec):
+        """One pass of the configured forward model."""
+        if self.spatial_model == "particles":
+            return self._forecast_particles(agents, grid, walls, gates, exits, sim_time_sec)
+        return self._forecast_continuum(agents, grid, walls, gates, exits, sim_time_sec)
+
+    def _forecast_ensemble(self, agents, grid, walls, gates, exits, sim_time_sec):
+        """
+        Run the horizon K times and report the spread as a probability map.
+
+        A single forecast is one sample of a stochastic process, and quoting it as a
+        point prediction hides exactly the information an operator needs. What matters
+        is not "crush density at 17:43" but "62% chance of crush density here within
+        8 minutes" - a number that can be acted on, and one the autopilot can weigh
+        rather than treat every forecast as equally certain.
+
+        Replicates differ only in the arrival draw, which is a genuine source of
+        uncertainty now that ingress is Poisson. They do not capture error in the
+        model's form, so this is narrower than a full predictive distribution: it
+        answers "how much does the arrival randomness move the answer", not "is the
+        model right".
+
+        The first pass supplies the returned snapshots, so callers and the accuracy
+        harness see the same shape of result as before.
+        """
+        k = max(1, int(self.ensemble_replicates))
+        h, w = self.height, self.width
+
+        final_grids = []
+        exceed_hits = np.zeros((h, w), dtype=np.float64)
+        primary = None
+
+        for i in range(k):
+            snapshots = self._run_once(agents, grid, walls, gates, exits, sim_time_sec)
+            if i == 0:
+                primary = snapshots
+                primary_grids = list(self.last_forecast_grids or [])
+
+            grids = list(self.last_forecast_grids or [])
+            if not grids:
+                continue
+
+            peak = np.zeros((h, w), dtype=np.float64)
+            for _t, g in grids:
+                np.maximum(peak, g, out=peak)
+            exceed_hits += (peak >= PILEUP_DENSITY)
+            final_grids.append(grids[-1][1])
+
+        runs = len(final_grids)
+        if runs == 0:
+            self.exceedance = None
+            self.final_sigma = None
+            return primary or []
+
+        self.exceedance = exceed_hits / float(runs)
+        if runs > 1:
+            self.final_sigma = np.std(np.stack(final_grids, axis=0), axis=0)
+        else:
+            self.final_sigma = np.zeros((h, w), dtype=np.float64)
+
+        # Restore the primary pass: the replicates are a measurement, not the result.
+        self.last_forecast_grids = primary_grids if primary is not None else []
+        return primary or []
+
     def _forecast_particles(
         self,
         agents: List[Agent],
@@ -493,9 +581,10 @@ class PredictionEngine:
 
             if self.arrival_model is not None and spawn_routes:
                 elapsed = (step + 1) * self.sim_dt
-                backlog += self.arrival_model.arrivals_in(
+                expected = self.arrival_model.arrivals_in(
                     sim_time_sec + elapsed, self.sim_dt
                 )
+                backlog += float(self.rng.gen.poisson(expected)) if expected > 0 else 0.0
                 wanting_in = int(backlog)
                 if wanting_in:
                     admitted = state.inject(
@@ -526,6 +615,9 @@ class PredictionEngine:
         self.forecast_eta = None
         self.forecast_peak = None
         self.last_forecast_grids = []
+        self.exceedance = None
+        self.final_sigma = None
+
 
     def _build_eta_maps(self, grids, sim_time_sec: float):
         h, w = self.height, self.width

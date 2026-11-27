@@ -17,6 +17,9 @@ Real-time crowd simulation, AI-powered vision pipeline, bottleneck forecasting, 
   - [Environment Variables](#environment-variables)
 - [Usage](#usage)
 - [Testing & Benchmarks](#testing--benchmarks)
+  - [Test Suite](#test-suite)
+  - [Per-Stage Latency Benchmark](#per-stage-latency-benchmark)
+  - [Trajectory Recording & Forecast Accuracy](#trajectory-recording--forecast-accuracy)
 - [Deploy on Render](#deploy-on-render)
 - [Project Structure](#project-structure)
 
