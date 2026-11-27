@@ -57,6 +57,7 @@ htmlcov/
 # --- Local Runtime Artifacts, Logs & Temp Files -------------------------------
 backend/.cache/
 frontend/.cache/
+runs/
 *.log
 *.tmp
 *.temp

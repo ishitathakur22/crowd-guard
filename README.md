@@ -16,7 +16,7 @@ Real-time crowd simulation, AI-powered vision pipeline, bottleneck forecasting, 
   - [Running the Server](#running-the-server)
   - [Environment Variables](#environment-variables)
 - [Usage](#usage)
-- [Testing, Benchmarks & Forecast Evaluation](#testing-benchmarks--forecast-evaluation)
+- [Testing & Benchmarks](#testing--benchmarks)
 - [Deploy on Render](#deploy-on-render)
 - [Project Structure](#project-structure)
 
@@ -54,19 +54,20 @@ flowchart LR
 ## Features & Engine Highlights
 
 ### Vision & AI (Local)
-- **AI Vision Pipeline:** End-to-end video analysis using YOLOv8 (Crowd, Traffic, Anomalies, Flow Seg) and MiDaS (Depth Estimation).
-- **Vision Language Model (VLM):** Integrated SmolVLM2 (2.2B) for high-level scene understanding and safety hazard descriptions.
+- **AI Vision Pipeline (`backend/vision/pipeline.py`, `backend/vision/aggregator.py`):** Dual-worker YOLO setup (`yolov8n.pt` person detection with ByteTrack tracking via `lap==0.5.14`, plus `yolov8s.pt` vehicle detection), greedy IoU de-duplication, and 4-point ground-plane homography calibration (`calibrate`, with corner-stretch fallback). MiDaS depth estimation (`midas_v21_small.pt`) is retained as optional (`use_depth = False` by default).
+- **Vision Language Model (VLM):** Integrated SmolVLM2 (2.2B GGUF) on keyframes for high-level scene understanding and safety hazard descriptions; degrades cleanly to `unavailable` if `llama-cpp-python` is not compiled.
 - **Hardware Acceleration:** Native PyTorch CUDA 12.8 support and GPU-compiled `llama-cpp-python` for fast local inference.
 
 ### Real-Time Physics, Density & Routing
-- **Vectorised Social Force Model (`backend/physics.py`):** Evaluates Helbing & Molnar forces over flat `(src, dst)` neighbour-pair arrays within `INTERACTION_CUTOFF = 3.0` m (calibrated with `B = 0.10`; 4.3 ms/substep at 200 agents and 77 ms at 1,000 agents, down from 58 ms / 1,338 ms in the scalar loop) and verified to `1e-5` relative tolerance against the scalar reference (`backend/physics_scalar.py`).
+- **Vectorised Social Force Model (`backend/physics.py`):** Evaluates Helbing & Molnar forces over flat `(src, dst)` neighbour-pair arrays within `INTERACTION_CUTOFF = 3.0` m (calibrated with `B = 0.10`, lifting mean crowd walking speed from `0.423 m/s` to `0.995 m/s`; `11.5 ms/tick` at 200 agents vs. `313 ms` in the scalar loop, and `199.6 ms` full tick at 1,000 agents for `2.5×` real-time headroom) and verified to `1e-5` relative tolerance against the scalar reference (`backend/physics_scalar.py`).
 - **Unified Local Density & Fruin LoS (`backend/density.py`):** Zone classification, hazard detection, and forecast early warnings all share one `local_density(field, radius=1)` spatial mean (people/m²), preventing mismatched readings across dashboard panels, with per-second rise rates and Fruin Level-of-Service classification (LoS A–F + Critical).
-- **Density-Weighted A\* & Cached Flow Fields (`backend/pathfinding.py`):** Routes agents around congestion using $W_e = L_e \cdot [1 + \alpha (\rho_e / \rho_{\text{critical}})^\beta]$ ($\alpha = 2.0$, $\beta = 4.0$, $\rho_{\text{critical}} = 3.5$ p/m²) plus cached exit potential flow fields, bounded per tick (`REROUTE_COOLDOWN_TICKS = 10`, `MAX_REROUTES_PER_TICK = 40`).
+- **Density-Weighted A\* & Cached Flow Fields (`backend/pathfinding.py`):** Routes agents around congestion using $W_e = L_e \cdot [1 + \alpha (\rho_e / \rho_{\text{critical}})^\beta]$ ($\alpha = 2.0$, $\beta = 4.0$, $\rho_{\text{critical}} = 3.5$ p/m²) plus cached multi-source exit potential flow fields (`591 ms` → `1.15 ms` cached per tick at 200 agents; `6.84 ms` rebuild once per `REROUTE_COOLDOWN_TICKS = 10`, capped at `MAX_REROUTES_PER_TICK = 40`).
 
 ### Forecasting, Reproducibility & Automation
-- **15-Minute Continuum Forecasting (`backend/prediction.py`):** Uses a flux-conserving `continuum` advection model along an 8-connected exit potential with Weidmann speed-density scaling (`jam_density = 5.0` p/m², `PILEUP_DENSITY = 2.17` p/m²) and future arrivals injected from measured pedestrian curves (`backend/ingress.py`, City of Melbourne CC BY 4.0 profiles for `gate`, `concourse`, and `food`). The legacy `particles` clone model remains selectable for benchmark comparisons.
+- **15-Minute Continuum Forecasting (`backend/prediction.py`):** Uses a flux-conserving `continuum` advection model along an 8-connected exit potential with Weidmann speed-density scaling (`jam_density = 5.0` p/m², `PILEUP_DENSITY = 2.17` p/m²), cutting 15-min forecast cost from `~1,133 ms` to `181 ms` while eliminating particle deadlock. The legacy `particles` clone model remains selectable for benchmark comparisons.
+- **Stochastic Poisson Arrivals (`backend/ingress.py`):** Injects future arrivals from measured pedestrian sensor curves (City of Melbourne CC BY 4.0 profiles for `gate`, `concourse`, and `food`) using a seeded Poisson process (measured variance/mean = `1.006`), enabling realistic arrival surges rather than zero-variance deterministic counts.
 - **Autopilot & Gate Diverts (`backend/autopilot.py`):** Automatically diverts gate arrivals if an operator does not respond within a configurable real-time window, backed by strict guard rails—acts only on imminent pile-ups (`<= 300s` ETA) that are already busy (`>= 1.08` p/m², LoS D+), caps diverts at `70%` (`DIVERT_DURATION_SEC = 120s`), never stacks diverts or closes/throttles gates, resets to OFF on restart, and persists an activity log (`backend/data/autopilot_log.jsonl`, up to 200 entries).
-- **Deterministic Seeded Engine (`backend/rng.py`):** Derives independent SHA-256 substreams (`sfm`, `predict`, `ingress`) from a single seed (`DEFAULT_SEED = 1337`, overridable via `CROWD_SEED`), making simulation runs and forecast accuracy checks bit-identical.
+- **Deterministic Seeded Engine (`backend/rng.py`):** Derives independent SHA-256 substreams (`sfm`, `predict`, `ingress`) from a single seed (`DEFAULT_SEED = 1337`, overridable via `CROWD_SEED`), making simulation runs and forecast accuracy checks reproducible.
 - **Thread-Safe Snapshots & Monotonic Tick Clock (`backend/main.py`, `backend/simulation.py`):** Schedules ticks against an absolute `time.monotonic()` deadline (re-basing on overrun instead of firing catch-up bursts, bounded by `MIN_TICK_PERIOD_SEC = 0.002` s) and swaps immutable state/heatmap snapshots under `_state_lock` so WebSocket broadcasts never race with the simulation thread.
 
 ---
@@ -75,10 +76,11 @@ flowchart LR
 
 | Layer | Technologies |
 | :--- | :--- |
-| **Backend** | Python 3.10+, FastAPI, Uvicorn, WebSockets, NumPy, Pydantic |
-| **AI & Vision** | PyTorch (CUDA 12.8 / CPU / MPS), `torchvision`, `ultralytics` (YOLOv8), `timm` (MiDaS v2.1), `filterpy`, `opencv-python`, `llama-cpp-python` (SmolVLM2-2.2B-Instruct GGUF), `huggingface-hub` |
+| **Backend** | Python 3.10+, FastAPI (`0.165.0`), Uvicorn (`0.54.0`), WebSockets (`17.4`), NumPy (`2.5.5`), Pydantic (`2.14.4`) |
+| **AI & Vision** | PyTorch (`2.11.0`, CUDA 12.8 / CPU / MPS), `torchvision`, `ultralytics` (`8.4.219`, YOLOv8), `timm` (`1.0.24`, MiDaS v2.1), `opencv-python`, `llama-cpp-python` (SmolVLM2-2.2B-Instruct GGUF), `huggingface-hub` |
+| **Vision Tracking** | ByteTrack (via Ultralytics `model.track()` with `lap==0.5.14`) |
 | **Frontend** | Vanilla HTML/CSS/JS with Canvas API |
-| **Testing & Benchmarks** | `pytest`, recorded `.npz` ground-truth trajectories, per-stage latency profiler |
+| **Testing & Benchmarks** | `pytest` (117 tests across 10 files), recorded `.npz` ground-truth trajectories, per-stage latency profiler |
 
 ---
 
@@ -155,29 +157,64 @@ http://localhost:8001/static/index.html
 
 ---
 
-## Testing, Benchmarks & Forecast Evaluation
+## Testing & Benchmarks
 
-The repository includes an automated test suite and standalone scripts to profile engine latency and score forecast accuracy against recorded ground-truth trajectories.
+The engine is measured rather than assumed. Every optimisation in this repository is justified by a number that can be regenerated, and every regression is recorded in [benchmarks/README.md](file:///f:/CrowdFlowOptimiser/crowd-guard/benchmarks/README.md).
 
-### Running Tests
+### Test Suite
+
 ```cmd
 .\.venv\Scripts\python.exe -m pytest tests -q
 ```
-Covers unified density & Fruin thresholds (`test_density.py`), continuum forecast bounds (`test_forecast.py`), gate queues & diverts (`test_gates.py`), sensor ingress curves (`test_ingress.py`), model instance isolation (`test_models.py`), density-weighted A\* & flow fields (`test_pathfinding.py`), vectorised vs. scalar SFM parity (`test_physics_parity.py`), seeded determinism (`test_reproducibility.py`), and thread-safe snapshots / monotonic tick timing (`test_snapshot_and_clock.py`).
+
+**117 tests across 10 files**, covering core correctness, physics parity, and concurrency safety:
+
+| File | Guards |
+| :--- | :--- |
+| `test_reproducibility.py` | Same seed → bit-identical state; different seeds diverge |
+| `test_physics_parity.py` | Vectorised SFM is a pure function and matches scalar reference to `1e-5` |
+| `test_models.py` | No shared mutable default (e.g., per-instance `Agent.vel`) |
+| `test_forecast.py` | Mass conservation, jam-density cap, snapshot counts, finiteness |
+| `test_density.py` | Fruin boundaries, unified `local_density` measure, per-second rise-rate units |
+| `test_pathfinding.py` | A\* wall avoidance, density weighting, strictly descending flow field |
+| `test_ingress.py` | Poisson dispersion (`variance/mean`), rate integration, curve normalisation |
+| `test_gates.py` | Admission budget, queue accounting, diverts, open-gate assignment |
+| `test_snapshot_and_clock.py` | Concurrent snapshot reads are safe; tick period is independent of tick work |
+| `test_vision_aggregator.py` | Detection IoU de-duplication, 4-point homography, out-of-plan handling |
 
 ### Per-Stage Latency Benchmark
-Profiles `density`, `physics`, `reroute`, `forecast`, `serialise`, `spawn`, and end-to-end `update()` across 50, 200, 500, and 1,000 agents (writing `benchmarks/bench_baseline.json`):
+
+Profiles `density`, `physics`, `reroute`, `forecast`, `serialise`, `spawn`, and end-to-end `update()` across crowd sizes (writing `benchmarks/bench_baseline.json`):
+
 ```cmd
-.\.venv\Scripts\python.exe scripts/bench.py
-.\.venv\Scripts\python.exe scripts/bench.py --agents 200 500 --reps 30
+.\.venv\Scripts\python.exe scripts/bench.py --agents 50 200 500 1000
 ```
 
-### Trajectory Recording & Forecast Scoring
-Records a deterministic live trajectory (`default` or `surge`) to `benchmarks/trajectory_<scenario>.npz` and evaluates `continuum` vs. `particles` against a persistence baseline (`MAE`, `busy MAE`, `corr`, `peak err`, `lead time`):
+A tick represents `0.5` simulated seconds, so holding `1×` speed means finishing a tick within **500 ms** (`Headroom = 500 ms / tick`):
+
+| Agents | Tick (Before) | Tick (After) | Headroom |
+| :--- | :--- | :--- | :--- |
+| `50` | 65 ms | **8.3 ms** | 60.4× |
+| `200` | 609 ms | **17.0 ms** | 29.4× |
+| `500` | 2,051 ms | **57.0 ms** | 8.8× |
+| `1,000` | 6,633 ms | **199.6 ms** | 2.5× |
+
+### Trajectory Recording & Forecast Accuracy
+
+Records a deterministic live trajectory (`default` or `surge` scenario) to `benchmarks/trajectory_<scenario>.npz` and evaluates `continuum` vs. `particles` across `MAE`, `busy MAE`, `corr`, `peak err`, and `lead time` against a **persistence baseline** ("density now, unchanged"):
+
 ```cmd
-.\.venv\Scripts\python.exe scripts/record_trajectory.py --scenario default
+.\.venv\Scripts\python.exe scripts/record_trajectory.py --cuts 60 120 180 --horizon-minutes 15
 .\.venv\Scripts\python.exe scripts/eval_forecast.py --scenario default --model continuum
 ```
+
+| Metric | Continuum Forecast | Persistence Baseline |
+| :--- | :--- | :--- |
+| **MAE** | **0.063** | 0.091 |
+| **Busy-cell MAE** | 1.028 | **0.762** |
+| **Field correlation** | 0.048 | **0.183** |
+
+> **Honest Assessment:** The continuum forecast beats persistence on overall MAE (and runs in `199 ms` vs. `626 ms` for the particle clone), but still trails persistence on busy-cell MAE and spatial correlation. See [benchmarks/README.md](file:///f:/CrowdFlowOptimiser/crowd-guard/benchmarks/README.md) for the full accuracy breakdown, reverted experiments, and scenario limitations.
 
 ---
 
@@ -227,20 +264,20 @@ crowd-guard/
 │   ├── prediction.py         # 15-min continuum advection & particle forecast models
 │   ├── rng.py                # SHA-256 derived deterministic RNG substreams
 │   ├── simulation.py         # Core simulation engine & thread-safe snapshot publisher
-│   └── vision/               # Local YOLOv8, MiDaS & SmolVLM2 vision pipeline
+│   └── vision/               # YOLOv8 + ByteTrack, MiDaS, SmolVLM2 & aggregator
 ├── frontend/                 # Dashboard UI (HTML/CSS/JS, Canvas rendering)
-├── benchmarks/               # Saved latency baselines, trajectories & forecast scores
+├── benchmarks/               # Saved latency baselines, trajectories & benchmarks/README.md
 ├── scripts/
 │   ├── bench.py              # Per-stage latency profiler across crowd sizes
 │   ├── build_arrival_profiles.py  # Arrival curve builder from sensor data
 │   ├── eval_forecast.py      # Forecast accuracy scorer vs. persistence baseline
 │   └── record_trajectory.py  # Deterministic ground-truth trajectory recorder
-├── tests/                    # Pytest suite (physics parity, determinism, concurrency, etc.)
+├── tests/                    # 117 pytest tests across 10 test modules
 ├── weights/                  # Downloaded AI model weights (populated by download_models.py)
 ├── download_models.py        # Downloads YOLOv8, MiDaS, and SmolVLM2 weights
 ├── render.yaml               # Render free-tier deployment blueprint
-├── requirements.txt          # Full local dependencies (including vision/GPU stack)
-├── requirements-deploy.txt   # Lightweight deployment dependencies (simulation-only)
+├── requirements.txt          # Pinned local dependencies (including vision/GPU stack)
+├── requirements-deploy.txt   # Pinned headless deployment dependencies (simulation-only)
 ├── setup.bat / setup.sh      # Automated environment & model setup scripts
 └── start.bat / start-cpu.bat / start.sh  # Server launchers (GPU / CPU / macOS-Linux)
 ```
