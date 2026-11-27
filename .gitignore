@@ -46,13 +46,24 @@ weights/
 autopilot_log.jsonl
 backend/data/autopilot_log.jsonl
 *.jsonl
+coverage.xml
 .coverage
 .coverage.*
-coverage.xml
 htmlcov/
 .htmlcov/
 *.prof
 *.lprof
+
+# --- Measurement Artefacts ----------------------------------------------------
+# Regenerated on demand by scripts/bench.py, scripts/record_trajectory.py,
+# scripts/record_hotspot.py, scripts/eval_forecast.py and
+# scripts/eval_reliability.py.
+#
+# benchmarks/README.md is tracked: it is the written record of what the numbers
+# were, which changes were reverted and why, and how to rebuild every figure.
+# The JSON summaries and .npz trajectories beside it are outputs, not sources.
+benchmarks/*.json
+benchmarks/*.npz
 
 # --- Local Runtime Artifacts, Logs & Temp Files -------------------------------
 backend/.cache/

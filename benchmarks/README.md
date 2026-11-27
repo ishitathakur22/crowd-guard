@@ -251,6 +251,58 @@ behaviour exactly.
 
 ---
 
+## 3c. Why the exceedance ensemble is disabled
+
+`scripts/eval_reliability.py` checks whether `p_exceed` is an honest probability: it
+forecasts from each cut point, reads the per-cell probability, and compares it with
+whether that cell actually breached inside the horizon. A calibrated map lies on the
+diagonal.
+
+It does not.
+
+| scenario | base rate | Brier | ECE | mean predicted | mean observed |
+|---|---|---|---|---|---|
+| hotspot | 0.973 | 0.921 | **0.917** | 0.09 | 0.97 |
+| default | 0.242 | 0.498 | **0.589** | 0.39 | 0.33 |
+
+For reference, always predicting 0.5 scores a Brier of 0.25, so both of these are
+worse than refusing to give a number.
+
+| predicted range | cells | observed (hotspot) |
+|---|---|---|
+| 0.0-0.1 | 1 859 | **1.000** |
+| 0.7-0.8 | 55 | 0.764 |
+| 0.9-1.0 | 144 | 0.729 |
+
+1 859 of 2 078 cells were called "unlikely" and then breached **every single time**.
+In the default scenario it inverts: cells predicted at 1.0 breached 0% of the time.
+
+**The diagnosis.** Failing in opposite directions depending on regime means `p_exceed`
+is not a probability at all — it is a rescaled count of 4 replicates. The underlying
+model's spread is not measuring what it claims, which is a sharper form of the same
+`busy_mae` / correlation problem documented in section 3.
+
+**The decision.** `ensemble_replicates = 0` by default. A safety number that claims
+confidence it has not earned is worse than no number at all: an operator who trusts it
+decides worse than one given nothing. The mechanism is kept and tested, and the
+`AUTO_MIN_P_EXCEED` autopilot rail stays in place (inert while the ensemble is off) so
+it is ready if a future reliability check passes.
+
+**What would fix it.** Not a parameter sweep. The ensemble varies only the arrival
+draw, so it can never express uncertainty about the model's own flow behaviour —
+which, per section 3b, is where the error actually lives. The ensemble needs to
+inherit a model whose spread reflects reality, and the model's flow conservation is
+wrong at scale. That is the same open problem, reached from a different direction.
+
+Re-run the check with:
+
+```cmd
+.venv\Scripts\python.exe scripts\eval_reliability.py --scenario hotspot --replicates 4
+.venv\Scripts\python.exe scripts\eval_reliability.py --scenario default --replicates 4
+```
+
+---
+
 ## 4. Correctness fixes, with evidence
 
 | Defect | Symptom | Fix |
