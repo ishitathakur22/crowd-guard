@@ -181,6 +181,10 @@ This has been attempted five ways and every one measured worse; see section 5.
 
 ### Metrics that remain unexercised
 
+> **Superseded.** Lead time and breach recall are now measurable; see section 3b.
+> The obstacle was that no recorded scenario reached LoS E. A tightened chokepoint
+> fixed that.
+
 Breach precision/recall/F1 and **bottleneck lead time are not measurable**: the truth
 never reaches LoS E in either scenario, so there is nothing to detect. Lead time —
 "how many seconds of warning did we get" — is the number that should matter most and
@@ -189,6 +193,61 @@ it is currently undefined.
 Fixing that needs a scenario that genuinely reaches LoS E: a tighter venue, a forced
 gate closure at high attendance, or a much higher attendance figure. Note the last
 one is now feasible — 1 000 agents costs 200 ms per tick rather than 6.6 s.
+
+---
+
+## 3b. The hotspot scenario: first measurable lead time
+
+`scripts/record_hotspot.py` narrows the venue's central chokepoint to a single cell
+and raises attendance, so the pile-up threshold is genuinely crossed. Recorded with
+seed 1337: **956 agents, peak local density 8.67 p/m^2, 96% of ticks at or above
+LoS E**.
+
+This is the first scenario in which lead time and breach recall mean anything.
+
+| cut | agents | lead mean | matched | missed | false cells |
+|---|---|---|---|---|---|
+| 60 s | 464 | **110.0 s** | 24 | 261 | 43 |
+| 120 s | 515 | 55.4 s | 26 | 273 | 41 |
+| 180 s | 590 | 55.6 s | 27 | 288 | 38 |
+
+| metric | forecast | persistence |
+|---|---|---|
+| MAE | 0.653 | **0.496** |
+| busy MAE | 1.526 | **0.963** |
+| correlation | 0.069 | **0.478** |
+| population error | **-476 to -826** | — |
+
+The result cuts both ways and both halves matter.
+
+**The good news.** Lead time is real and large - up to **110 seconds** of warning.
+That metric existed only as "undefined" before.
+
+**The bad news.** In a genuinely dense venue the forecast loses to persistence more
+badly than in any previous test, and the population bias is enormous: it drains
+476-826 people the truth keeps, with recall around 8% (24 matched against ~285 real
+breaches). It warns early, about the wrong thing.
+
+**The conclusion this forces.** The over-drain documented at 130 agents is not a
+spatial problem a better routing term would fix; it is **scale-dependent**. At 500+
+agents it is catastrophic. That reframes the open question, and is why a sixth
+parameter attempt is not worth making: the model's flow conservation is wrong in a
+regime the earlier scenarios never exercised.
+
+### Cost of the uncertainty ensemble
+
+`ensemble_replicates = 4` multiplies the forecast cost, because each replicate re-runs
+the full horizon:
+
+| agents | forecast (1 pass) | forecast (4 replicates) | tick | headroom |
+|---|---|---|---|---|
+| 200 | 181 ms | **1 579 ms** | 38 ms | 29x -> **13x** |
+| 500 | 176 ms | **2 008 ms** | 183 ms | 8.8x -> **2.7x** |
+
+Still real time at both sizes, but the margin at 500 agents drops by two thirds. At
+1 000 agents this configuration is likely to fall below real time. The ensemble is a
+capability that costs latency, and `ensemble_replicates = 0` restores the previous
+behaviour exactly.
 
 ---
 

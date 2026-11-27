@@ -4,10 +4,11 @@ import os
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
+import json
 import threading
 from typing import Callable, Optional
 
-from .models import YOLOWorker, DepthWorker, VLMWorker
+from .models import YOLOWorker, VLMWorker
 from .aggregator import VisionAggregator
 from .model_manager import model_manager
 
@@ -61,8 +62,12 @@ class VisionPipeline:
             "traffic": YOLOWorker(_w("yolov8s.pt"), "traffic", classes=[2, 3, 5, 7]),
         }
 
-        # ━━━ Depth Worker ━━━
-        self.depth_worker = DepthWorker(_w("midas_v21_small.pt"))
+        # Depth estimation was removed: MiDaS could not be loaded without a torch.hub
+        # trust prompt that blocks non-interactive startup, and nothing downstream
+        # ever consumed the result - `map_to_grid` explicitly ignored it. Keeping a
+        # worker whose output is discarded, behind a blocker, was dead weight.
+        # Restoring it would need a four-point ground-plane calibration first, at
+        # which point the depth map would still be relative rather than metric.
 
         # ━━━ VLM Worker (SmolVLM2 2.2B Q4 on GPU) ━━━
         self.vlm_worker = VLMWorker(
@@ -71,7 +76,7 @@ class VisionPipeline:
             n_gpu_layers=-1,
         )
         self.vlm_keyframe_interval = 30  # Run VLM every 30 frames
-        #: Depth estimation is off by default; see the note where it is dispatched.
+        #: Retained so callers that set it do not fail; has no effect without depth.
         self.use_depth = False
 
         # Thread pool for concurrent inference
@@ -115,11 +120,6 @@ class VisionPipeline:
                 else:
                     failed[name] = "load returned false"
 
-            if self.depth_worker.loaded or self.depth_worker.load():
-                loaded["depth"] = True
-            else:
-                failed["depth"] = "load returned false (MiDaS needs timm installed)"
-
             if self.vlm_worker.loaded or self.vlm_worker.load():
                 loaded["vlm"] = True
             else:
@@ -137,6 +137,68 @@ class VisionPipeline:
                 "unavailable": failed,
                 "device": model_manager.device,
             }
+
+    #: Where an operator-supplied calibration is kept between restarts.
+    CALIBRATION_FILE = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "data", "vision_calibration.json"
+    )
+
+    def load_calibration(self) -> bool:
+        """
+        Apply a saved four-point calibration, if one exists.
+
+        Stored as JSON so an operator can supply ground-truth points without editing
+        code or restarting into a hard-coded homography.
+        """
+        try:
+            with open(self.CALIBRATION_FILE) as f:
+                data = json.load(f)
+            img = data["reference_points_img"]
+            grid = data["reference_points_grid"]
+        except (OSError, KeyError, json.JSONDecodeError, TypeError):
+            return False
+
+        ok = self.aggregator.calibrate(img, grid)
+        if ok:
+            logger.info("Applied saved vision calibration from %s", self.CALIBRATION_FILE)
+        return ok
+
+    def save_calibration(self, reference_points_img, reference_points_grid) -> bool:
+        """Validate, apply and persist a calibration. Returns False if unusable."""
+        if not self.aggregator.calibrate(reference_points_img, reference_points_grid):
+            return False
+        try:
+            os.makedirs(os.path.dirname(self.CALIBRATION_FILE), exist_ok=True)
+            with open(self.CALIBRATION_FILE, "w") as f:
+                json.dump(
+                    {
+                        "reference_points_img": reference_points_img,
+                        "reference_points_grid": reference_points_grid,
+                        "grid_width": self.aggregator.grid_width,
+                        "grid_height": self.aggregator.grid_height,
+                    },
+                    f,
+                    indent=2,
+                )
+        except OSError as exc:
+            logger.warning("Calibration applied but could not be saved: %s", exc)
+            return True
+        return True
+
+    def calibration_status(self) -> dict:
+        return {
+            "calibrated": self.aggregator.is_calibrated,
+            "proper_homography": self.aggregator.is_proper_homography,
+            "saved_file": os.path.exists(self.CALIBRATION_FILE),
+            "grid_width": self.aggregator.grid_width,
+            "grid_height": self.aggregator.grid_height,
+            "note": (
+                "A proper homography needs four point pairs measured on the floor. "
+                "Without one the pipeline assumes the frame covers the whole venue "
+                "with no perspective correction, which misplaces anyone further from "
+                "the camera."
+            ),
+        }
 
     def set_source(self, source):
         """Change the video source (0=webcam, or file path string)."""
@@ -171,7 +233,7 @@ class VisionPipeline:
         # points is the correct route and takes precedence when supplied.
         frame_w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 1920
         frame_h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 1080
-        if not self.aggregator.is_calibrated:
+        if not self.aggregator.is_calibrated and not self.load_calibration():
             self.aggregator.calibrate_from_corners(frame_w, frame_h)
 
         self.frame_count = 0
@@ -199,13 +261,8 @@ class VisionPipeline:
                 loop.run_in_executor(self.executor, worker.predict, frame)
                 for worker in self.workers.values()
             ]
-            # Depth is opt-in. It used to run on every frame and cost a full-frame
-            # colour conversion, an H2D copy, a 256->1080 bicubic upsample on the GPU
-            # and an 8.3 MB transfer back - and the only consumer ignored the value.
-            depth_task = (
-                loop.run_in_executor(self.executor, self.depth_worker.predict, frame)
-                if self.use_depth else None
-            )
+            # No depth worker: see the note in __init__.
+            depth_task = None
 
             # ━━━ VLM on keyframes only ━━━
             vlm_task = None

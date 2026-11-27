@@ -37,6 +37,11 @@ from typing import Dict, List, Optional
 
 AUTO_ACT_MAX_ETA_SEC = 300.0   # only act on pile-ups expected within 5 minutes
 AUTO_MAX_PCT = 70              # never divert more than this share of a gate's arrivals
+AUTO_MIN_P_EXCEED = 0.6        # ...and only where the ensemble is at least this confident it happens.
+                               # Inert while the ensemble is disabled (p_exceed defaults to 1.0
+                               # for a point forecast, so this rail never fires). It exists for
+                               # the case where the ensemble is switched on after passing a
+                               # reliability check - the guard is already in place for that.
 AUTO_MIN_LIVE_DENSITY = 1.08   # ...and only where it is ALREADY busy now (LoS D, p/m²): the forecast
                                # alone is not enough evidence for the system to act by itself
 MAX_WAIT_SEC = 600
@@ -164,6 +169,8 @@ class Autopilot:
                     continue
                 if w.get("local_density", 0.0) < AUTO_MIN_LIVE_DENSITY:
                     continue      # forecast only: leave it as a recommendation for the operator
+                if w.get("p_exceed", 1.0) < AUTO_MIN_P_EXCEED:
+                    continue      # the ensemble is not confident enough to act on its own
                 if o in engine._diverts:      # already being handled (by operator or autopilot)
                     continue
                 cur = wanted.get(o)
@@ -245,6 +252,7 @@ class Autopilot:
                 "max_eta_sec": AUTO_ACT_MAX_ETA_SEC,
                 "max_pct": AUTO_MAX_PCT,
                 "min_live_density": AUTO_MIN_LIVE_DENSITY,
+                "min_p_exceed": AUTO_MIN_P_EXCEED,
                 "pending": pending,
                 "log_seq": self.seq,
                 "ack_seq": self.ack_seq,

@@ -1,0 +1,346 @@
+{
+  "seed": 1337,
+  "python": "3.12.10",
+  "tick_duration_sec": 0.5,
+  "results": [
+    {
+      "agents_requested": 200,
+      "agents_populated": 200,
+      "initial_spawn_ms": 552.2,
+      "rss_mb": 64.2,
+      "stages": {
+        "density | raw counts": {
+          "reps": 8,
+          "mean_ms": 0.085,
+          "p50_ms": 0.084,
+          "p95_ms": 0.095,
+          "max_ms": 0.095
+        },
+        "density | local density": {
+          "reps": 8,
+          "mean_ms": 0.057,
+          "p50_ms": 0.056,
+          "p95_ms": 0.1,
+          "max_ms": 0.1
+        },
+        "density | gaussian smooth": {
+          "reps": 8,
+          "mean_ms": 0.116,
+          "p50_ms": 0.103,
+          "p95_ms": 0.194,
+          "max_ms": 0.194
+        },
+        "density | flow vectors": {
+          "reps": 8,
+          "mean_ms": 1.927,
+          "p50_ms": 1.691,
+          "p95_ms": 3.001,
+          "max_ms": 3.001
+        },
+        "density | heatmap payload": {
+          "reps": 8,
+          "mean_ms": 0.253,
+          "p50_ms": 0.225,
+          "p95_ms": 0.388,
+          "max_ms": 0.388
+        },
+        "density | classify zones": {
+          "reps": 8,
+          "mean_ms": 0.172,
+          "p50_ms": 0.185,
+          "p95_ms": 0.234,
+          "max_ms": 0.234
+        },
+        "density | detect hazards": {
+          "reps": 8,
+          "mean_ms": 0.124,
+          "p50_ms": 0.124,
+          "p95_ms": 0.126,
+          "max_ms": 0.126
+        },
+        "physics | 1 SFM substep": {
+          "reps": 8,
+          "mean_ms": 3.553,
+          "p50_ms": 3.41,
+          "p95_ms": 4.667,
+          "max_ms": 4.667
+        },
+        "physics | all substeps/tick": {
+          "reps": 4,
+          "mean_ms": 18.593,
+          "p50_ms": 16.291,
+          "p95_ms": 26.102,
+          "max_ms": 26.102
+        },
+        "reroute | cached flow field": {
+          "reps": 2,
+          "mean_ms": 4.475,
+          "p50_ms": 3.581,
+          "p95_ms": 5.369,
+          "max_ms": 5.369
+        },
+        "reroute | incl. field rebuild": {
+          "reps": 2,
+          "mean_ms": 12.712,
+          "p50_ms": 10.502,
+          "p95_ms": 14.923,
+          "max_ms": 14.923
+        },
+        "forecast | 15 min horizon": {
+          "reps": 2,
+          "mean_ms": 264.331,
+          "p50_ms": 257.834,
+          "p95_ms": 270.828,
+          "max_ms": 270.828
+        },
+        "serialise | get_state()": {
+          "reps": 8,
+          "mean_ms": 0.0,
+          "p50_ms": 0.0,
+          "p95_ms": 0.001,
+          "max_ms": 0.001
+        },
+        "spawn | 10 agents (A* each)": {
+          "reps": 2,
+          "mean_ms": 13.916,
+          "p50_ms": 10.605,
+          "p95_ms": 17.226,
+          "max_ms": 17.226
+        },
+        "TICK | update() end to end": {
+          "reps": 4,
+          "mean_ms": 28.603,
+          "p50_ms": 28.776,
+          "p95_ms": 32.737,
+          "max_ms": 32.737
+        }
+      }
+    },
+    {
+      "agents_requested": 500,
+      "agents_populated": 500,
+      "initial_spawn_ms": 1119.8,
+      "rss_mb": 78.8,
+      "stages": {
+        "density | raw counts": {
+          "reps": 8,
+          "mean_ms": 0.193,
+          "p50_ms": 0.192,
+          "p95_ms": 0.21,
+          "max_ms": 0.21
+        },
+        "density | local density": {
+          "reps": 8,
+          "mean_ms": 0.038,
+          "p50_ms": 0.036,
+          "p95_ms": 0.06,
+          "max_ms": 0.06
+        },
+        "density | gaussian smooth": {
+          "reps": 8,
+          "mean_ms": 0.069,
+          "p50_ms": 0.067,
+          "p95_ms": 0.077,
+          "max_ms": 0.077
+        },
+        "density | flow vectors": {
+          "reps": 8,
+          "mean_ms": 1.83,
+          "p50_ms": 1.801,
+          "p95_ms": 2.089,
+          "max_ms": 2.089
+        },
+        "density | heatmap payload": {
+          "reps": 8,
+          "mean_ms": 0.361,
+          "p50_ms": 0.344,
+          "p95_ms": 0.418,
+          "max_ms": 0.418
+        },
+        "density | classify zones": {
+          "reps": 8,
+          "mean_ms": 0.102,
+          "p50_ms": 0.1,
+          "p95_ms": 0.111,
+          "max_ms": 0.111
+        },
+        "density | detect hazards": {
+          "reps": 8,
+          "mean_ms": 0.108,
+          "p50_ms": 0.106,
+          "p95_ms": 0.114,
+          "max_ms": 0.114
+        },
+        "physics | 1 SFM substep": {
+          "reps": 8,
+          "mean_ms": 16.157,
+          "p50_ms": 15.853,
+          "p95_ms": 17.604,
+          "max_ms": 17.604
+        },
+        "physics | all substeps/tick": {
+          "reps": 4,
+          "mean_ms": 80.079,
+          "p50_ms": 81.735,
+          "p95_ms": 88.0,
+          "max_ms": 88.0
+        },
+        "reroute | cached flow field": {
+          "reps": 2,
+          "mean_ms": 6.786,
+          "p50_ms": 5.164,
+          "p95_ms": 8.408,
+          "max_ms": 8.408
+        },
+        "reroute | incl. field rebuild": {
+          "reps": 2,
+          "mean_ms": 17.02,
+          "p50_ms": 15.212,
+          "p95_ms": 18.828,
+          "max_ms": 18.828
+        },
+        "forecast | 15 min horizon": {
+          "reps": 2,
+          "mean_ms": 233.004,
+          "p50_ms": 225.707,
+          "p95_ms": 240.301,
+          "max_ms": 240.301
+        },
+        "serialise | get_state()": {
+          "reps": 8,
+          "mean_ms": 0.0,
+          "p50_ms": 0.0,
+          "p95_ms": 0.001,
+          "max_ms": 0.001
+        },
+        "spawn | 10 agents (A* each)": {
+          "reps": 2,
+          "mean_ms": 13.674,
+          "p50_ms": 11.322,
+          "p95_ms": 16.026,
+          "max_ms": 16.026
+        },
+        "TICK | update() end to end": {
+          "reps": 4,
+          "mean_ms": 157.903,
+          "p50_ms": 158.422,
+          "p95_ms": 184.058,
+          "max_ms": 184.058
+        }
+      }
+    },
+    {
+      "agents_requested": 1000,
+      "agents_populated": 1000,
+      "initial_spawn_ms": 3666.0,
+      "rss_mb": 89.6,
+      "stages": {
+        "density | raw counts": {
+          "reps": 4,
+          "mean_ms": 0.773,
+          "p50_ms": 0.744,
+          "p95_ms": 0.925,
+          "max_ms": 0.925
+        },
+        "density | local density": {
+          "reps": 4,
+          "mean_ms": 0.076,
+          "p50_ms": 0.089,
+          "p95_ms": 0.092,
+          "max_ms": 0.092
+        },
+        "density | gaussian smooth": {
+          "reps": 4,
+          "mean_ms": 0.114,
+          "p50_ms": 0.112,
+          "p95_ms": 0.133,
+          "max_ms": 0.133
+        },
+        "density | flow vectors": {
+          "reps": 4,
+          "mean_ms": 3.795,
+          "p50_ms": 3.745,
+          "p95_ms": 4.105,
+          "max_ms": 4.105
+        },
+        "density | heatmap payload": {
+          "reps": 4,
+          "mean_ms": 1.07,
+          "p50_ms": 0.995,
+          "p95_ms": 1.368,
+          "max_ms": 1.368
+        },
+        "density | classify zones": {
+          "reps": 4,
+          "mean_ms": 0.18,
+          "p50_ms": 0.177,
+          "p95_ms": 0.195,
+          "max_ms": 0.195
+        },
+        "density | detect hazards": {
+          "reps": 4,
+          "mean_ms": 0.173,
+          "p50_ms": 0.177,
+          "p95_ms": 0.177,
+          "max_ms": 0.177
+        },
+        "physics | 1 SFM substep": {
+          "reps": 4,
+          "mean_ms": 84.578,
+          "p50_ms": 86.199,
+          "p95_ms": 87.5,
+          "max_ms": 87.5
+        },
+        "physics | all substeps/tick": {
+          "reps": 2,
+          "mean_ms": 385.553,
+          "p50_ms": 378.691,
+          "p95_ms": 392.414,
+          "max_ms": 392.414
+        },
+        "reroute | cached flow field": {
+          "reps": 2,
+          "mean_ms": 7.559,
+          "p50_ms": 7.122,
+          "p95_ms": 7.997,
+          "max_ms": 7.997
+        },
+        "reroute | incl. field rebuild": {
+          "reps": 2,
+          "mean_ms": 21.81,
+          "p50_ms": 21.807,
+          "p95_ms": 21.814,
+          "max_ms": 21.814
+        },
+        "forecast | 15 min horizon": {
+          "reps": 2,
+          "mean_ms": 357.775,
+          "p50_ms": 354.964,
+          "p95_ms": 360.586,
+          "max_ms": 360.586
+        },
+        "serialise | get_state()": {
+          "reps": 4,
+          "mean_ms": 0.001,
+          "p50_ms": 0.001,
+          "p95_ms": 0.001,
+          "max_ms": 0.001
+        },
+        "spawn | 10 agents (A* each)": {
+          "reps": 2,
+          "mean_ms": 43.984,
+          "p50_ms": 29.979,
+          "p95_ms": 57.988,
+          "max_ms": 57.988
+        },
+        "TICK | update() end to end": {
+          "reps": 3,
+          "mean_ms": 413.215,
+          "p50_ms": 407.451,
+          "p95_ms": 451.019,
+          "max_ms": 451.019
+        }
+      }
+    }
+  ]
+}

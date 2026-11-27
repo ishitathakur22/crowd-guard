@@ -91,6 +91,28 @@ class SimulationEngine:
         self.prediction_engine = PredictionEngine(width, height, rng=self.rng.derive("predict"))
         self.predictions: List[PredictionSnapshot] = []
         self.prediction_interval = 10  # Run forecast every N ticks
+        # Replicates per forecast, for the exceedance probability. OFF by default.
+        #
+        # The mechanism works and costs real latency (4 replicates took the forecast
+        # from 181 ms to 1579 ms at 200 agents). What it does not do is produce a
+        # *calibrated* probability. Measured by scripts/eval_reliability.py against
+        # recorded truth:
+        #
+        #   hotspot scenario (base rate 0.97): ECE 0.917, mean predicted 0.09
+        #     against 0.97 observed - 1859 of 2078 cells were called 'unlikely'
+        #     and then breached every time.
+        #   default scenario (base rate 0.24): ECE 0.589, cells predicted at 1.0
+        #     breached 0% of the time.
+        #
+        # Erring in opposite directions across scenarios means `p_exceed` is not a
+        # probability but a rescaled replicate count, and a safety number that
+        # claims confidence it has not earned is worse than no number at all:
+        # an operator who trusts it decides worse than one given nothing.
+        #
+        # The ensemble stays available and tested. Enable it only after a reliability
+        # check passes (ECE <= 0.05) on the scenario of interest, and until then treat
+        # any p_exceed value as a ranking, never a probability.
+        self.prediction_engine.ensemble_replicates = 0
         
         # Alert system
         self.alerts: List[AlertEvent] = []
@@ -703,6 +725,26 @@ class SimulationEngine:
                 pct = int((peak - 1.08) / peak * 100 + 0.5)
                 pct = max(5, min(95, pct))
 
+            # Exceedance probability: the share of forecast replicates in which this
+            # cell reached the pile-up threshold within the horizon. The ensemble
+            # computes it on every forecast, and until now nothing consumed it, so a
+            # graded probability was being thrown away in favour of a single sample.
+            p_exceed = 1.0
+            pe = self.prediction_engine
+            if pe.exceedance is not None:
+                try:
+                    p_exceed = float(pe.exceedance[int(w["cell_y"]), int(w["cell_x"])])
+                except (IndexError, KeyError, TypeError, ValueError):
+                    p_exceed = 1.0
+
+            # Scale the recommended divert by how likely the breach actually is. A
+            # 30%-likely pile-up should not attract the same intervention as a 90%
+            # one; the previous formula came from a single deterministic sample and
+            # treated every warning as equally certain.
+            pct = int(round(pct * float(p_exceed)))
+            pct = max(0, min(95, pct))
+
+            w["p_exceed"] = round(p_exceed, 3)
             w["origin_gate"] = origin.gate_id if origin else None
             w["target_gate"] = target.gate_id if target else None
             w["divert_pct"] = pct
@@ -803,6 +845,9 @@ class SimulationEngine:
             sim_speed=self.sim_speed,
             clock_hour=round(self.arrival_model.hour_at(self.sim_time), 2),
             forecast_warnings=self.forecast_warnings,
+            # Summary of the uncertainty map, so the dashboard can show how
+            # confident the forecast is rather than implying certainty.
+            forecast_uncertainty=self._uncertainty_summary(),
             autopilot=self.autopilot.status(),
             active_diverts=[
                 {"origin": o, "target": d["target"], "pct": d["pct"],
@@ -833,6 +878,22 @@ class SimulationEngine:
                 if 0 <= cx < self.width and 0 <= cy < self.height:
                     field[cy][cx] += 1.0
         return field
+
+    def _uncertainty_summary(self) -> dict:
+        """Headline numbers from the exceedance map, without shipping the full grid."""
+        pe = self.prediction_engine
+        if pe.exceedance is None:
+            return {"available": False}
+        exc = pe.exceedance
+        sigma = pe.final_sigma
+        return {
+            "available": True,
+            "replicates": int(pe.ensemble_replicates),
+            "max_p_exceed": round(float(exc.max()), 3),
+            "cells_above_50pct": int((exc >= 0.5).sum()),
+            "cells_above_80pct": int((exc >= 0.8).sum()),
+            "max_sigma": round(float(sigma.max()), 3) if sigma is not None else None,
+        }
 
     def get_heatmap_data(self) -> dict:
         """The most recently published heatmap payload. See `get_state`."""

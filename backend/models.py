@@ -195,3 +195,7 @@ class SimulationState(BaseModel):
     autopilot: Dict = {}             # Autopilot status: enabled, wait_sec, pending, log_seq, unseen
     forecast_warnings: List[Dict] = []  # zones forecast to pile up within 15 min: {cell_x, cell_y, eta_sec, peak_density, current_density}
     active_diverts: List[Dict] = []  # [{origin, target, pct, remaining_sec}] operator gate diverts in effect
+    # Headline numbers from the exceedance ensemble: how confident the forecast is.
+    # {"available": bool, "replicates": int, "max_p_exceed": float,
+    #  "cells_above_50pct": int, "cells_above_80pct": int, "max_sigma": float}
+    forecast_uncertainty: Dict = {}

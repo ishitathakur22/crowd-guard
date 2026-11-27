@@ -322,6 +322,42 @@ async def scan_video(request: VideoScanRequest):
     asyncio.create_task(vision_pipeline.scan_videos(request.paths))
     return {"status": "scanning", "paths": request.paths}
 
+class CalibrationRequest(BaseModel):
+    reference_points_img: List[List[float]]
+    reference_points_grid: List[List[float]]
+
+
+@app.get("/api/vision/calibration")
+async def get_calibration():
+    """Report whether the vision pipeline has a real ground-plane calibration."""
+    if not ENABLE_VISION or vision_pipeline is None:
+        return DISABLED_VISION_MSG
+    return vision_pipeline.calibration_status()
+
+
+@app.post("/api/vision/calibration")
+async def set_calibration(request: CalibrationRequest):
+    """
+    Supply four point pairs measured on the floor, in image and venue coordinates.
+
+    Validated before it is applied: if the homography cannot be solved the previous
+    calibration is left untouched rather than silently degraded.
+    """
+    if not ENABLE_VISION or vision_pipeline is None:
+        return DISABLED_VISION_MSG
+    if len(request.reference_points_img) != len(request.reference_points_grid):
+        return {"status": "error", "detail": "point lists must be the same length"}
+    if len(request.reference_points_img) < 4:
+        return {"status": "error", "detail": "four point pairs are required"}
+
+    ok = vision_pipeline.save_calibration(
+        request.reference_points_img, request.reference_points_grid
+    )
+    if not ok:
+        return {"status": "error", "detail": "homography could not be solved from those points"}
+    return {"status": "calibrated", **vision_pipeline.calibration_status()}
+
+
 @app.get("/api/vision/status")
 async def vision_status():
     """Return current vision pipeline status."""

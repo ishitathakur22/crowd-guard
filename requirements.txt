@@ -32,19 +32,14 @@ opencv-python==5.1.0.95
 # which is not acceptable in a deployed service.
 lap==0.5.14
 
-# --- Depth estimation: loadable in principle, BLOCKED in practice ------------
-# MiDaS needs both of these, and neither is obvious from the code:
-#   1. `timm` - MiDaS's torch.hub entry point imports it when building the model,
-#      even with pretrained=False and local weights on disk.
-#   2. `rwightman_gen-efficientnet-pytorch` - a *nested* torch.hub dependency that
-#      prompts "Do you trust this repository? (y/N)" on first load. In a
-#      non-interactive service that prompt raises EOFError and the depth model never
-#      loads. trust_repo=True does not cover it, because the prompt comes from the
-#      inner hub call.
-# Depth is therefore OFF by default (`VisionPipeline.use_depth = False`). Enabling it
-# requires pre-populating ~/.cache/torch/hub with that repo, or replacing the hub
-# path in DepthWorker.load() with a timm.create_model(...) construction.
-timm==1.0.24
+# --- Depth estimation: REMOVED -------------------------------------------------
+# MiDaS is no longer used. It required `timm` for its torch.hub model definition
+# AND a nested `rwightman_gen-efficientnet-pytorch` hub repo that prompts
+# "Do you trust this repository? (y/N)" on first load - which raises EOFError in a
+# non-interactive service, so the model never loaded. Nothing consumed its output:
+# `VisionAggregator.map_to_grid` ignored the depth value, because MiDaS emits
+# relative inverse depth with no metric scale and so cannot correct a ground-plane
+# position anyway. The worker, its weights and the `timm` dependency are gone.
 
 # --- Declared but not used at runtime ----------------------------------------
 # `filterpy` is importable but nothing in backend/ imports it: agent tracking was

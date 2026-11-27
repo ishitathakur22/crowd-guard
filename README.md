@@ -83,7 +83,7 @@ flowchart LR
 | **AI & Vision** | PyTorch (`2.11.0`, CUDA 12.8 / CPU / MPS), `torchvision`, `ultralytics` (`8.4.219`, YOLOv8), `timm` (`1.0.24`, MiDaS v2.1), `opencv-python`, `llama-cpp-python` (SmolVLM2-2.2B-Instruct GGUF), `huggingface-hub` |
 | **Vision Tracking** | ByteTrack (via Ultralytics `model.track()` with `lap==0.5.14`) |
 | **Frontend** | Vanilla HTML/CSS/JS with Canvas API |
-| **Testing & Benchmarks** | `pytest` (117 tests across 10 files), recorded `.npz` ground-truth trajectories, per-stage latency profiler |
+| **Testing & Benchmarks** | `pytest` (132 tests across 11 files), recorded `.npz` ground-truth trajectories, per-stage latency profiler, exceedance-probability ensemble |
 
 ---
 
@@ -170,7 +170,7 @@ The engine is measured rather than assumed. Every optimisation in this repositor
 .\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
-**117 tests across 10 files**, covering core correctness, physics parity, and concurrency safety:
+**132 tests across 11 files**, covering core correctness, physics parity, concurrency safety, and forecast uncertainty:
 
 | File | Guards |
 | :--- | :--- |
@@ -184,6 +184,7 @@ The engine is measured rather than assumed. Every optimisation in this repositor
 | `test_gates.py` | Admission budget, queue accounting, diverts, open-gate assignment |
 | `test_snapshot_and_clock.py` | Concurrent snapshot reads are safe; tick period is independent of tick work |
 | `test_vision_aggregator.py` | Detection IoU de-duplication, 4-point homography, out-of-plan handling |
+| `test_exceedance.py` | Ensemble variance (`sigma > 0`), probability bounds, divert scaling, autopilot gating |
 
 ### Per-Stage Latency Benchmark
 
@@ -218,6 +219,22 @@ Records a deterministic live trajectory (`default` or `surge` scenario) to `benc
 | **Field correlation** | 0.048 | **0.183** |
 
 > **Honest Assessment:** The continuum forecast beats persistence on overall MAE (and runs in `199 ms` vs. `626 ms` for the particle clone), but still trails persistence on busy-cell MAE and spatial correlation. See [benchmarks/README.md](file:///f:/CrowdFlowOptimiser/crowd-guard/benchmarks/README.md) for the full accuracy breakdown, reverted experiments, and scenario limitations.
+
+#### Exceedance Probability & Bottleneck Lead Time
+
+Each forecast runs `ensemble_replicates = 4` passes and reports a per-cell **probability** of reaching the pile-up threshold within the horizon (`p_exceed`) rather than a single point estimate. Warnings carry it, the recommended divert is scaled by it, and the Autopilot refuses to act below `AUTO_MIN_P_EXCEED = 0.6` — a warning derived from one sample cannot distinguish a likely pile-up from a fluke, so autonomy now requires evidence.
+
+A tightened-chokepoint scenario (`scripts/record_hotspot.py`: 956 agents, peak 8.67 p/m², 96% of ticks above LoS E) made **bottleneck lead time** measurable for the first time:
+
+| Cut | Agents | Lead time | Matched | Missed |
+| :--- | :--- | :--- | :--- | :--- |
+| `60s` | 464 | **110.0 s** | 24 | 261 |
+| `120s` | 515 | 55.4 s | 26 | 273 |
+| `180s` | 590 | 55.6 s | 27 | 288 |
+
+Up to **110 seconds of warning** — but in that dense regime the forecast loses to persistence harder than anywhere else (MAE `0.653` vs `0.496`, population drained 476–826 short, ~8% recall). The over-drain is therefore **scale-dependent**, not merely spatial.
+
+The ensemble costs latency: at 200 agents headroom falls `29× → 13×`, at 500 agents `8.8× → 2.7×`. Set `ensemble_replicates = 0` to restore the point forecast exactly.
 
 ---
 

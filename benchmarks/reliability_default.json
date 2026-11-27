@@ -1,0 +1,83 @@
+{
+  "scenario": "default",
+  "replicates": 4,
+  "threshold": 2.17,
+  "brier": 0.4982443820224719,
+  "ece": 0.5884831460674157,
+  "base_rate": 0.24157303370786518,
+  "resolution": 0.31311406024061517,
+  "n": 178,
+  "verdict": "NOT CALIBRATED - the probability is misleading. Either disable the ensemble (ensemble_replicates = 0) or treat p_exceed as a ranking only, never as a probability.",
+  "bins": [
+    {
+      "lo": 0.0,
+      "hi": 0.1,
+      "n": 36,
+      "predicted": 0.0,
+      "observed": 1.0
+    },
+    {
+      "lo": 0.1,
+      "hi": 0.2,
+      "n": 0,
+      "predicted": null,
+      "observed": null
+    },
+    {
+      "lo": 0.2,
+      "hi": 0.30000000000000004,
+      "n": 49,
+      "predicted": 0.25,
+      "observed": 0.12244897959183673
+    },
+    {
+      "lo": 0.30000000000000004,
+      "hi": 0.4,
+      "n": 0,
+      "predicted": null,
+      "observed": null
+    },
+    {
+      "lo": 0.4,
+      "hi": 0.5,
+      "n": 0,
+      "predicted": null,
+      "observed": null
+    },
+    {
+      "lo": 0.5,
+      "hi": 0.6000000000000001,
+      "n": 42,
+      "predicted": 0.5,
+      "observed": 0.023809523809523808
+    },
+    {
+      "lo": 0.6000000000000001,
+      "hi": 0.7000000000000001,
+      "n": 0,
+      "predicted": null,
+      "observed": null
+    },
+    {
+      "lo": 0.7000000000000001,
+      "hi": 0.8,
+      "n": 34,
+      "predicted": 0.75,
+      "observed": 0.0
+    },
+    {
+      "lo": 0.8,
+      "hi": 0.9,
+      "n": 0,
+      "predicted": null,
+      "observed": null
+    },
+    {
+      "lo": 0.9,
+      "hi": 1.0,
+      "n": 17,
+      "predicted": 1.0,
+      "observed": 0.0
+    }
+  ]
+}

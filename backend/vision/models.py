@@ -135,69 +135,6 @@ class YOLOWorker(BaseVisionModel):
         return detections
 
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# DEPTH WORKER (Local MiDaS)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-class DepthWorker(BaseVisionModel):
-    """Monocular depth estimation using local MiDaS weights."""
-
-    def __init__(self, model_path: str = "weights/midas_v21_small.pt", device: str = 'cuda'):
-        super().__init__(model_path, device)
-        self.transform = None
-
-        model_manager.register("depth", "depth", model_path)
-
-    def load(self):
-        def _loader():
-            # MiDaS's torch.hub entry point pulls the model definition from GitHub,
-            # and that definition imports `timm`. Without timm installed the loader
-            # fails with ModuleNotFoundError before the local weights are ever read,
-            # so `timm` is a hard requirement for depth even when the .pt file is
-            # already on disk. That was not obvious from the code, hence this note.
-            self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS_small", pretrained=False, trust_repo=True)
-            if os.path.exists(self.model_path):
-                state_dict = torch.load(self.model_path, map_location=self.device, weights_only=True)
-                self.model.load_state_dict(state_dict)
-            else:
-                logger.warning(f"Local weights not found at {self.model_path}, using torch.hub fallback.")
-                self.model = torch.hub.load("intel-isl/MiDaS", "MiDaS_small", trust_repo=True)
-
-            self.model.to(self.device)
-            self.model.eval()
-
-            midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms", trust_repo=True)
-            self.transform = midas_transforms.small_transform
-            self.loaded = True
-            return True
-
-        return model_manager.load_model("depth", _loader)
-
-    def predict(self, frame: np.ndarray):
-        if not self.loaded or self.model is None or self.transform is None:
-            return None
-
-        start_t = time.time()
-
-        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        input_batch = self.transform(img).to(self.device)
-
-        with torch.no_grad():
-            prediction = self.model(input_batch)
-            prediction = torch.nn.functional.interpolate(
-                prediction.unsqueeze(1),
-                size=img.shape[:2],
-                mode="bicubic",
-                align_corners=False,
-            ).squeeze()
-
-        latency = (time.time() - start_t) * 1000
-        model_manager.record_inference("depth", latency)
-
-        return prediction.cpu().numpy()
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # VLM WORKER (SmolVLM2 2.2B via llama-cpp-python)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
