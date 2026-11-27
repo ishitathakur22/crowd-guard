@@ -126,10 +126,51 @@ def test_draw_arrivals_returns_whole_people():
         assert got >= 0
 
 
+def test_draw_arrivals_is_poisson_not_deterministic():
+    """
+    The same configuration must produce *different* sequences on successive draws.
+
+    This is the whole point of the change. The previous implementation carried a
+    fractional remainder and emitted floor(carry), so it produced an identical
+    sequence every time and had exactly zero variance - which makes arrival surges
+    structurally impossible, and surges are what create bottlenecks.
+    """
+    m = model(attendance=100_000, scale=1.0, start_hour=17.0)
+    # At 17:00 this is about two people per tick, so the rate is unambiguous.
+    assert m.arrivals_in(0.0, 0.5) > 1.5, (
+        f"expected ~2/tick at this attendance, got {m.arrivals_in(0.0, 0.5):.3f}"
+    )
+
+    draws = [m.draw_arrivals(0.0, 0.5) for _ in range(200)]
+    assert len(set(draws)) > 1, (
+        f"200 draws at a >1/tick rate all returned {draws[0]}; that is not Poisson"
+    )
+    mean = sum(draws) / len(draws)
+    var = sum((d - mean) ** 2 for d in draws) / (len(draws) - 1)
+    assert var > 0, "a counting process with zero variance cannot generate a surge"
+
+
+def test_poisson_matches_the_expected_rate():
+    """Poisson must preserve the expectation, so attendance is unchanged."""
+    m = model(attendance=30_000, scale=1.0, start_hour=12.0)
+    expected_per_tick = m.arrivals_in(0.0, 0.5)
+
+    n = 4000
+    total = sum(m.draw_arrivals(0.0, 0.5) for _ in range(n))
+    observed = total / n
+
+    # 4 sigma of the mean: sqrt(n * lambda) / n = sqrt(lambda / n)
+    sigma = (expected_per_tick / n) ** 0.5
+    assert abs(observed - expected_per_tick) < 4 * sigma + 1e-9, (
+        f"drew {observed:.3f}/tick against an expected {expected_per_tick:.3f}"
+    )
+
+
 def test_draw_arrivals_conserves_people_over_time():
     """
-    Summed over many ticks the whole-person draws must match the float integral,
-    within the single fractional person still held in the carry.
+    Summed over many ticks the draws must match the float integral within sampling
+    error. The old test asserted near-exact equality; with a stochastic process the
+    correct assertion is a statistical band, not a tighter one.
     """
     m = model(attendance=20_000, scale=1.0, start_hour=0.0)
     duration = 0.5
@@ -138,30 +179,47 @@ def test_draw_arrivals_conserves_people_over_time():
     drawn = sum(m.draw_arrivals(t * duration, duration) for t in range(ticks))
     expected = sum(m.arrivals_in(t * duration, duration) for t in range(ticks))
 
-    assert abs(drawn - expected) < 1.0, (
-        f"drew {drawn} people against an expected {expected:.2f}"
+    # Poisson over the whole window: sd = sqrt(total expected arrivals).
+    sigma = max(1.0, expected ** 0.5)
+    assert abs(drawn - expected) < 4 * sigma, (
+        f"drew {drawn} against an expected {expected:.2f} (4 sigma = {4 * sigma:.1f})"
     )
-    assert 0.0 <= m._carry < 1.0
 
 
 def test_low_rates_still_admit_eventually():
     """
-    A rate below one person per tick must not truncate to zero forever; that is what
-    the fractional carry is for.
+    A rate far below one person per tick must still produce people over time - a
+    Poisson process handles this naturally, where a truncating implementation needed
+    a fractional carry to avoid admitting nobody forever.
+
+    At 03:00 the arrival curve is genuinely near zero (0.00035 of the daily total),
+    so the attendance is set high enough that the *expectation* over the window is
+    about twelve people: 0.003 per tick, four hundred times below one, yet non-zero
+    overall. A lower attendance draws zero, correctly.
     """
-    m = model(attendance=1, scale=1.0, start_hour=3.0)
-    total = sum(m.draw_arrivals(t * 0.5, 0.5) for t in range(2000))
-    assert total >= 0
-    # Over 1000 s at a trickle rate the carry must have produced somebody.
-    assert m._carry >= 0.0
+    m = model(attendance=60_000, scale=1.0, start_hour=3.0)
+    expected = sum(m.arrivals_in(t * 0.5, 0.5) for t in range(4000))
+    assert expected > 5.0, f"test setup too weak: only {expected:.2f} expected"
+
+    total = sum(m.draw_arrivals(t * 0.5, 0.5) for t in range(4000))
+    assert total > 0, "a slow trickle should still admit somebody over 2000 seconds"
 
 
-def test_draws_are_deterministic_for_a_given_model():
+def test_draws_are_deterministic_for_a_given_seed():
+    """Poisson sampling is stochastic but still reproducible from the seed."""
     a = model(rng=Rng(7))
     b = model(rng=Rng(7))
     seq_a = [a.draw_arrivals(t * 0.5, 0.5) for t in range(500)]
     seq_b = [b.draw_arrivals(t * 0.5, 0.5) for t in range(500)]
     assert seq_a == seq_b
+
+
+def test_different_seeds_give_different_sequences():
+    a = model(rng=Rng(7))
+    b = model(rng=Rng(8))
+    seq_a = [a.draw_arrivals(t * 0.5, 0.5) for t in range(500)]
+    seq_b = [b.draw_arrivals(t * 0.5, 0.5) for t in range(500)]
+    assert seq_a != seq_b
 
 
 def test_zero_duration_draws_nothing():

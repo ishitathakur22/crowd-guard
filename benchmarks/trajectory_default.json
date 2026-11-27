@@ -30,9 +30,9 @@
     "jam_density": 5.0
   },
   "population": {
-    "min": 42,
-    "max": 135,
-    "final": 49
+    "min": 33,
+    "max": 140,
+    "final": 50
   },
-  "wall_sec": 22.3
+  "wall_sec": 28.5
 }

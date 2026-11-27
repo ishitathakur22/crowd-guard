@@ -61,7 +61,11 @@ class ArrivalModel:
         # (Poisson arrivals) does not shift the physics draws.
         self.rng = rng or Rng()
         self.curve, self.meta = self._load_curve(profile_path or _PROFILE_PATH)
-        # Fractional-arrival carry, so rates below 1/tick still spawn eventually.
+        # Expected arrivals accumulated but not yet drawn, so a rate below one
+        # person per tick still produces people. Retained from the deterministic
+        # implementation, where it converted a fractional expectation into whole
+        # people; with Poisson sampling it is now redundant for that purpose but
+        # still records the residual for diagnostics.
         self._carry = 0.0
 
     def _load_curve(self, path: str):
@@ -107,15 +111,33 @@ class ArrivalModel:
 
     def draw_arrivals(self, sim_time_sec: float, duration_sec: float) -> int:
         """
-        Whole number of arrivals for one tick, carrying the fractional remainder.
+        People arriving in a window, drawn from a Poisson process.
 
-        Without the carry, any rate below one person per tick would truncate to
-        zero and the venue would never fill.
+        Why Poisson rather than a deterministic accumulator: pedestrian arrivals are
+        a counting process with variance equal to the mean. The previous
+        implementation carried a fractional remainder and emitted `floor(carry)`, so
+        given the same configuration it produced *exactly* the same sequence every
+        time and had zero variance. That is not a small statistical nicety - it makes
+        arrival surges structurally impossible, and surges are what actually create
+        bottlenecks. A simulator that cannot generate a surge cannot be used to test
+        whether the forecast would have predicted one. It also understated every
+        queueing statistic, because real crowds bunch up and an evenly-spaced stream
+        never does.
+
+        Poisson keeps the same expectation - `E[N] = rate * duration` - so attendance
+        totals and the arrival curve are unchanged; only the dispersion is added.
+        Draws come from the seeded generator, so a run is still exactly reproducible.
+
+        The integral uses the rate at the start of the window (left-endpoint
+        rectangle). At the tick granularity used here (0.5 s against an hourly curve)
+        the error is well under 0.1%.
         """
-        self._carry += self.arrivals_in(sim_time_sec, duration_sec)
-        whole = int(self._carry)
-        self._carry -= whole
-        return whole
+        expected = self.arrivals_in(sim_time_sec, duration_sec)
+        if expected <= 0.0:
+            return 0
+        # Record the expectation for diagnostics; not used to produce the count.
+        self._carry = expected
+        return int(self.rng.gen.poisson(expected))
 
     def describe(self) -> dict:
         """Summary for the API/dashboard so the data source is visible in the UI."""

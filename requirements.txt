@@ -1,14 +1,61 @@
-fastapi
-uvicorn
-pydantic
-numpy
-websockets
-ultralytics
-opencv-python
-torch
-torchvision
-filterpy
-llama-cpp-python
-huggingface-hub
-timm
+# Crowd Guard — Python dependencies
+#
+# Versions are pinned exactly. An unpinned requirements file means a build is not
+# reproducible: ultralytics' Results API, pydantic v1/v2 semantics and torch's CUDA
+# tagging have all changed incompatibly within a minor range, and any of them
+# silently landing mid-project breaks the simulation without an obvious cause.
+#
+# Every pin below was read from a working environment (`pip list --format=freeze`)
+# and, where marked verified, exercised by an actual run.
 
+# --- Core simulation (verified: the full test suite runs against these) --------
+numpy==2.5.5
+pydantic==2.14.4
+
+# --- API server (verified: installed and importable) --------------------------
+fastapi==0.165.0
+uvicorn==0.54.0
+websockets==17.4
+
+# --- Vision pipeline (verified: loaded and inferred on CUDA) ------------------
+# NOTE: torch/torchvision carry a local CUDA tag (+cu128) which varies by platform
+# and driver. Pinning the tag would break CPU-only and macOS installs, so the wheel
+# index is pinned instead and the tag is left to the index. setup.bat/setup.sh
+# install torch explicitly from the matching index; this file assumes that has run.
+torch==2.11.0
+torchvision==0.26.0
+ultralytics==8.4.219
+opencv-python==5.1.0.95
+
+# Verified: REQUIRED for ByteTrack tracking. Without it `model.track()` fails and
+# ultralytics silently pip-installs it at runtime ("requirements: lap>=0.5.12"),
+# which is not acceptable in a deployed service.
+lap==0.5.14
+
+# --- Depth estimation: loadable in principle, BLOCKED in practice ------------
+# MiDaS needs both of these, and neither is obvious from the code:
+#   1. `timm` - MiDaS's torch.hub entry point imports it when building the model,
+#      even with pretrained=False and local weights on disk.
+#   2. `rwightman_gen-efficientnet-pytorch` - a *nested* torch.hub dependency that
+#      prompts "Do you trust this repository? (y/N)" on first load. In a
+#      non-interactive service that prompt raises EOFError and the depth model never
+#      loads. trust_repo=True does not cover it, because the prompt comes from the
+#      inner hub call.
+# Depth is therefore OFF by default (`VisionPipeline.use_depth = False`). Enabling it
+# requires pre-populating ~/.cache/torch/hub with that repo, or replacing the hub
+# path in DepthWorker.load() with a timm.create_model(...) construction.
+timm==1.0.24
+
+# --- Declared but not used at runtime ----------------------------------------
+# `filterpy` is importable but nothing in backend/ imports it: agent tracking was
+# never wired in, and ByteTrack (via ultralytics) now covers that need. Safe to
+# remove; kept so the pin matches the declared stack.
+filterpy==2.0.0
+# Only needed by download_models.py and scripts/build_arrival_profiles.py.
+huggingface-hub==2.5.0
+# Not verified: not installed, and no working version was observed. A source build
+# that compiles llama.cpp; on Windows it needs the CUDA toolchain to honour
+# `n_gpu_layers=-1`, otherwise the VLM silently runs on CPU. Left unpinned rather
+# than pinning a number that was never tested. The VLM degrades to unavailable when
+# absent, which the pipeline reports through initialize()["unavailable"].
+llama-cpp-python

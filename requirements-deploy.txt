@@ -1,5 +1,16 @@
-fastapi
-uvicorn
-pydantic
-numpy
-websockets
+# Crowd Guard — deployment dependencies (Render, ENABLE_VISION=0)
+#
+# The simulation, physics, forecasting, Recommended Actions and Autopilot all run
+# headless; the vision stack (torch / ultralytics / opencv) is excluded to stay
+# inside Render's 512 MB free-tier allowance. This is also what makes a cold start
+# take about a minute rather than several.
+#
+# Pinned exactly, and all five verified importable in the reference environment.
+# Deliberately absent: torch, torchvision, ultralytics, opencv-python (vision),
+# filterpy and timm (unused at runtime).
+
+numpy==2.5.5
+pydantic==2.14.4
+fastapi==0.165.0
+uvicorn==0.54.0
+websockets==17.4
